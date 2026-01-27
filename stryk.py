@@ -273,7 +273,6 @@ if submitted and text_input:
         with tab1:
             st.dataframe(df[['Match', 'Hemmalag', 'Bortalag', 'Tips', 'Analys', 'Källa']], hide_index=True, use_container_width=True, height=table_height)
             txt_rad = "\n".join([f"M{r['Match']}: {r['Tips']}" for _, r in df.iterrows()])
-            st.download_button("Ladda ner rad", txt_rad, "rad.txt")
 
         with tab2:
             st.dataframe(df[['Match', 'Hemmalag', 'Val_1', 'Val_X', 'Val_2']], hide_index=True, use_container_width=True, height=table_height)
@@ -299,5 +298,6 @@ if submitted and text_input:
             ]
             
             st.dataframe(odds_view, hide_index=True, use_container_width=True, height=table_height)
+
 
 
