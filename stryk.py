@@ -268,7 +268,7 @@ if submitted and text_input:
         
         table_height = (len(df) * 35) + 38 
         
-        tab1, tab2, tab3 = st.tabs(["💡 Kupong", "📊 Värde", "🎲 Odds-Jämförelse"])
+        tab1, tab2, tab3 = st.tabs(["💡 Kupong", "📊 Värde", "🎲 Odds"])
         
         with tab1:
             st.dataframe(df[['Match', 'Hemmalag', 'Bortalag', 'Tips', 'Analys', 'Källa']], hide_index=True, use_container_width=True, height=table_height)
@@ -299,3 +299,4 @@ if submitted and text_input:
             ]
             
             st.dataframe(odds_view, hide_index=True, use_container_width=True, height=table_height)
+
