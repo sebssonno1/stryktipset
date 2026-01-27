@@ -176,7 +176,7 @@ def suggest_sign_and_status(row):
     return "".join(sorted(tecken)), status
 
 # --- APP LAYOUT ---
-st.set_page_config(page_title="Stryktipset 🐻", layout="wide")
+st.set_page_config(page_title="Literally cant go tits up", layout="wide")
 st.title(ST_PAGE_TITLE)
 
 # --- INSTRUKTIONER ---
@@ -285,6 +285,7 @@ if submitted and text_input:
             ]
             
             st.dataframe(odds_view, hide_index=True, use_container_width=True, height=table_height)
+
 
 
 
