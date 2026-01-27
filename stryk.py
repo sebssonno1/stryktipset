@@ -9,22 +9,6 @@ ST_PAGE_TITLE = "🐻 Stryktipset: Hej Då PM Edition"
 API_KEY = "31e8d45e0996d4e60b6dc48f8c656089" # <--- DIN NYCKEL HÄR
 CACHE_TIME = 900 
 
-# --- PLATSHÅLLARTEXT (FÖRHANDSVISNING) ---
-PLACEHOLDER_TEXT = """(Exempel på hur texten ska se ut:)
-1
-Liverpool
--
-Newcastle
-1
-X
-2
-Tipsinformation för match nummer 1
-Tipsinfo
-1
-X
-2
-Svenska folket"""
-
 # --- ÖVERSÄTTNINGSLISTA (FIXAR NAMNPROBLEM) ---
 TEAM_TRANSLATIONS = {
     # Engelska lag
@@ -298,6 +282,7 @@ if submitted and text_input:
             ]
             
             st.dataframe(odds_view, hide_index=True, use_container_width=True, height=table_height)
+
 
 
 
