@@ -192,11 +192,10 @@ def suggest_sign_and_status(row):
 st.set_page_config(page_title="Stryktipset Master", layout="wide")
 st.title(ST_PAGE_TITLE)
 
-# --- INSTRUKTIONER MED LÄNK ---
+# --- INSTRUKTIONER ---
 with st.expander("ℹ️ Instruktioner", expanded=True):
     col1, col2 = st.columns([1, 3])
     with col1:
-        # En snygg länk-knapp
         st.link_button("Gå till Stryktipset ↗️", "https://spela.svenskaspel.se/stryktipset")
     with col2:
         st.write("1. Klicka på knappen för att öppna Svenska Spel.")
@@ -263,7 +262,8 @@ if submitted and text_input:
         
         table_height = (len(df) * 35) + 38 
         
-        tab1, tab2 = st.tabs(["💡 Kupong", "📊 Värde"])
+        # TRE FLIKAR NU
+        tab1, tab2, tab3 = st.tabs(["💡 Kupong", "📊 Värde", "🎲 Odds"])
         
         with tab1:
             st.dataframe(df[['Match', 'Hemmalag', 'Bortalag', 'Tips', 'Analys', 'Källa']], hide_index=True, use_container_width=True, height=table_height)
@@ -272,3 +272,10 @@ if submitted and text_input:
 
         with tab2:
             st.dataframe(df[['Match', 'Hemmalag', 'Val_1', 'Val_X', 'Val_2']], hide_index=True, use_container_width=True, height=table_height)
+            
+        with tab3:
+            st.write("Här jämförs oddsen (från spelbolag) med hur folket har streckat (%)")
+            # Skapar en snyggare vy för odds-tabellen och byter namn på kolumnerna
+            odds_view = df[['Match', 'Hemmalag', 'API_Odds_1', 'API_Odds_X', 'API_Odds_2', 'Streck_1', 'Streck_X', 'Streck_2']].copy()
+            odds_view.columns = ['Match', 'Hemmalag', 'Odds 1', 'Odds X', 'Odds 2', 'Folk 1 (%)', 'Folk X (%)', 'Folk 2 (%)']
+            st.dataframe(odds_view, hide_index=True, use_container_width=True, height=table_height)
