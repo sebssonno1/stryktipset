@@ -292,11 +292,12 @@ if submitted and text_input:
             
             # Döper om kolumner för tydlighet
             odds_view.columns = [
-                'M', 'Lag', 
+                'Match', 'Lag', 
                 'Odds 1', 'Folket 1', 
                 'Odds X', 'Folket X', 
                 'Odds 2', 'Folket 2'
             ]
             
             st.dataframe(odds_view, hide_index=True, use_container_width=True, height=table_height)
+
 
