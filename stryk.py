@@ -257,13 +257,18 @@ if submitted and text_input:
         df['Tips'] = results[0]
         df['Analys'] = results[1]
 
+        # --- NYTT: RÄKNA OM FOLKETS PROCENT TILL ODDS ---
+        # Formel: 100 / Procent (med hantering för 0%)
+        df['Folk_Odds_1'] = df['Streck_1'].apply(lambda x: round(100/x, 2) if x > 0 else 0)
+        df['Folk_Odds_X'] = df['Streck_X'].apply(lambda x: round(100/x, 2) if x > 0 else 0)
+        df['Folk_Odds_2'] = df['Streck_2'].apply(lambda x: round(100/x, 2) if x > 0 else 0)
+
         # --- RESULTAT ---
         st.success(f"Träffade {matches_found_in_api} av 13 lag i API:et.")
         
         table_height = (len(df) * 35) + 38 
         
-        # TRE FLIKAR NU
-        tab1, tab2, tab3 = st.tabs(["💡 Kupong", "📊 Värde", "🎲 Odds"])
+        tab1, tab2, tab3 = st.tabs(["💡 Kupong", "📊 Värde", "🎲 Odds-Jämförelse"])
         
         with tab1:
             st.dataframe(df[['Match', 'Hemmalag', 'Bortalag', 'Tips', 'Analys', 'Källa']], hide_index=True, use_container_width=True, height=table_height)
@@ -274,8 +279,23 @@ if submitted and text_input:
             st.dataframe(df[['Match', 'Hemmalag', 'Val_1', 'Val_X', 'Val_2']], hide_index=True, use_container_width=True, height=table_height)
             
         with tab3:
-            st.write("Här jämförs oddsen (från spelbolag) med hur folket har streckat (%)")
-            # Skapar en snyggare vy för odds-tabellen och byter namn på kolumnerna
-            odds_view = df[['Match', 'Hemmalag', 'API_Odds_1', 'API_Odds_X', 'API_Odds_2', 'Streck_1', 'Streck_X', 'Streck_2']].copy()
-            odds_view.columns = ['Match', 'Hemmalag', 'Odds 1', 'Odds X', 'Odds 2', 'Folk 1 (%)', 'Folk X (%)', 'Folk 2 (%)']
+            st.write("Här jämförs **Bookmakers Odds** vs **Folkets 'Odds'**.")
+            st.write("_Om Folkets odds är lägre än Bookmakers, är laget överstreckat (dåligt värde)._")
+            
+            # Skapar en vy där vi lägger dem parvis för enklare jämförelse
+            odds_view = df[[
+                'Match', 'Hemmalag', 
+                'API_Odds_1', 'Folk_Odds_1', 
+                'API_Odds_X', 'Folk_Odds_X', 
+                'API_Odds_2', 'Folk_Odds_2'
+            ]].copy()
+            
+            # Döper om kolumner för tydlighet
+            odds_view.columns = [
+                'M', 'Lag', 
+                'Odds 1', 'Folket 1', 
+                'Odds X', 'Folket X', 
+                'Odds 2', 'Folket 2'
+            ]
+            
             st.dataframe(odds_view, hide_index=True, use_container_width=True, height=table_height)
