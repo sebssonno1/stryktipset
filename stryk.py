@@ -6,51 +6,91 @@ import re
 from thefuzz import process 
 
 # --- KONFIGURATION ---
-ST_PAGE_TITLE = "🐻 Stryktipset: Pro Edition (Vs Folket)"
+ST_PAGE_TITLE = "🐻 Stryktipset: Precision Edition"
 API_KEY = "31e8d45e0996d4e60b6dc48f8c656089" # <--- DIN NYCKEL HÄR
 CACHE_TIME = 900 
-MATCH_THRESHOLD = 85  # <--- KRAV: 85% likhet för matchning
+MATCH_THRESHOLD = 90  # <--- HÖJD TILL 90: Nu gissar den inte vilt längre!
 
 # --- PLATSHÅLLARTEXT ---
 PLACEHOLDER_TEXT = """Klistra in hela sidan (Ctrl+A) från den vanliga kupongvyn."""
 
-# --- ÖVERSÄTTNINGSLISTA ---
+# --- ÖVERSÄTTNINGSLISTA (MEGA-UPPDATERING) ---
+# Här har jag lagt in exakt vad API:et kallar lagen
 TEAM_TRANSLATIONS = {
-    # England
+    # --- PREMIER LEAGUE ---
+    "Arsenal": "Arsenal",
+    "Aston Villa": "Aston Villa",
+    "Bournemouth": "Bournemouth",
+    "Brentford": "Brentford",
+    "Brighton": "Brighton and Hove Albion",
+    "Chelsea": "Chelsea",
+    "Crystal P": "Crystal Palace",
+    "Crystal Palace": "Crystal Palace",
+    "Everton": "Everton",
+    "Fulham": "Fulham",
+    "Ipswich": "Ipswich Town", # Fixad
+    "Leicester": "Leicester City",
+    "Liverpool": "Liverpool",
+    "Man City": "Manchester City",
+    "Man United": "Manchester United",
+    "Newcastle": "Newcastle United",
+    "Nott. Forest": "Nottingham Forest",
+    "Nottingham": "Nottingham Forest",
+    "Southampton": "Southampton",
+    "Tottenham": "Tottenham Hotspur",
+    "West Ham": "West Ham United",
+    "Wolverhampton": "Wolverhampton Wanderers",
+    "Wolves": "Wolverhampton Wanderers",
+
+    # --- CHAMPIONSHIP (PROBLEMOMRÅDET) ---
+    "Blackburn": "Blackburn Rovers",
+    "Bristol C": "Bristol City",
+    "Burnley": "Burnley FC", # API heter ofta FC
+    "Cardiff": "Cardiff City",
+    "Coventry": "Coventry City",
+    "Derby": "Derby County",
+    "Hull": "Hull City", # Fixad
+    "Leeds": "Leeds United",
+    "Luton": "Luton Town",
+    "Middlesbrough": "Middlesbrough FC",
+    "Millwall": "Millwall FC", # Fixad
+    "Norwich": "Norwich City",
+    "Oxford": "Oxford United", # Fixad
+    "Plymouth": "Plymouth Argyle",
+    "Portsmouth": "Portsmouth FC", # Fixad
+    "Preston": "Preston North End",
+    "QPR": "Queens Park Rangers",
+    "Queens Park Rangers": "Queens Park Rangers",
     "Sheffield U": "Sheffield United",
     "Sheffield W": "Sheffield Wednesday",
-    "QPR": "Queens Park Rangers",
-    "Wolves": "Wolverhampton Wanderers",
-    "Blackburn": "Blackburn Rovers",
-    "Preston": "Preston North End",
-    "Plymouth": "Plymouth Argyle",
-    "Oxford": "Oxford United",
-    "Coventry": "Coventry City",
-    "Norwich": "Norwich City",
-    "Middlesbrough": "Middlesbrough FC",
-    "Leeds": "Leeds United",
-    "Leicester": "Leicester City",
-    "Ipswich": "Ipswich Town",
-    "Hull": "Hull City",
-    "Cardiff": "Cardiff City",
-    "Bristol C": "Bristol City",
-    "Swansea": "Swansea City",
     "Stoke": "Stoke City",
-    "WBA": "West Bromwich Albion",
+    "Sunderland": "Sunderland AFC",
+    "Swansea": "Swansea City", # Fixad
+    "Watford": "Watford FC", # Fixad
     "West Bromwich": "West Bromwich Albion",
-    "Derby": "Derby County",
-    "Portsmouth": "Portsmouth FC",
-    "Millwall": "Millwall FC",
-    "Luton": "Luton Town",
-    "Burnley": "Burnley FC",
-    "Man United": "Manchester United",
-    "Man City": "Manchester City",
-    "Nott. Forest": "Nottingham Forest",
-    "Newcastle": "Newcastle United",
-    "West Ham": "West Ham United",
-    "Brighton": "Brighton and Hove Albion",
-    
-    # Sverige
+    "WBA": "West Bromwich Albion",
+
+    # --- LEAGUE 1 & 2 (Vanliga på kupongen) ---
+    "Barnsley": "Barnsley FC",
+    "Birmingham": "Birmingham City", # Fixad
+    "Blackpool": "Blackpool FC",
+    "Bolton": "Bolton Wanderers",
+    "Charlton": "Charlton Athletic",
+    "Huddersfield": "Huddersfield Town",
+    "Leyton Orient": "Leyton Orient",
+    "Lincoln": "Lincoln City",
+    "Northampton": "Northampton Town",
+    "Peterborough": "Peterborough United",
+    "Reading": "Reading FC",
+    "Rotherham": "Rotherham United",
+    "Shrewsbury": "Shrewsbury Town",
+    "Stevenage": "Stevenage FC",
+    "Stockport": "Stockport County",
+    "Wigan": "Wigan Athletic",
+    "Wrexham": "Wrexham FC",
+    "Wycombe": "Wycombe Wanderers",
+
+    # --- SVENSKA ---
     "IFK Gbg": "IFK Göteborg",
     "Malmö": "Malmö FF",
     "Djurgården": "Djurgårdens IF",
@@ -58,8 +98,16 @@ TEAM_TRANSLATIONS = {
     "Häcken": "BK Häcken",
     "Västerås": "Västerås SK",
     "Brommapojk": "IF Brommapojkarna",
+    "Sirius": "IK Sirius",
+    "Mjällby": "Mjällby AIF",
+    "Halmstad": "Halmstads BK",
+    "Kalmar": "Kalmar FF",
+    "Värnamo": "IFK Värnamo",
+    "Elfsborg": "IF Elfsborg",
+    "Hammarby": "Hammarby IF",
+    "Norrköping": "IFK Norrköping",
 
-    # Europa
+    # --- EUROPA (STORLAG) ---
     "Inter": "Internazionale",
     "Milan": "AC Milan",
     "Roma": "AS Roma",
@@ -85,7 +133,7 @@ TEAM_TRANSLATIONS = {
     "PSV": "PSV Eindhoven"
 }
 
-# --- 1. HÄMTA EXTERNA ODDS (STORA LISTAN) ---
+# --- 1. HÄMTA EXTERNA ODDS ---
 @st.cache_data(ttl=CACHE_TIME)
 def fetch_external_odds(api_key):
     if not api_key or "DIN_NYCKEL" in api_key:
@@ -120,6 +168,7 @@ def fetch_external_odds(api_key):
         try:
             response = requests.get(url)
             if response.status_code == 429: # Slut på krediter
+                st.warning("⚠️ API-gränsen nådd. Vissa odds kanske saknas.")
                 break 
             if response.status_code != 200: continue
             
@@ -246,7 +295,7 @@ if submitted and text_input:
     if not matches_data: st.error("Hittade inga matcher.")
     
     if matches_data:
-        with st.spinner('Hämtar odds...'):
+        with st.spinner('Hämtar odds (detta kan ta 15-20 sekunder)...'):
             external_odds = fetch_external_odds(API_KEY)
         
         odds_teams = list(external_odds.keys()) if external_odds else []
@@ -260,7 +309,11 @@ if submitted and text_input:
             m['Matchat_Lag'] = "-" 
             
             if external_odds:
+                # Fuzzy matchning med strikt tröskel
                 match_name, score = process.extractOne(search_name, odds_teams)
+                
+                # VIKTIGT: Om score är under 90, godkänn INTE matchningen!
+                # Detta stoppar "Middlesbrough -> Köln"
                 if score >= MATCH_THRESHOLD: 
                     odds = external_odds[match_name]
                     m['API_Odds_1'] = odds['1']
@@ -297,7 +350,6 @@ if submitted and text_input:
         df['Folk_Odds_X'] = df['Streck_X'].apply(lambda x: round(100/x, 2) if x > 0 else 0)
         df['Folk_Odds_2'] = df['Streck_2'].apply(lambda x: round(100/x, 2) if x > 0 else 0)
 
-        # --- NYTT: SKAPA KOMBINERAD LAG-RUBRIK ---
         df['Match_Rubrik'] = df['Hemmalag'] + " - " + df['Bortalag']
 
         def color_value(val):
@@ -307,34 +359,31 @@ if submitted and text_input:
             return ''
 
         st.success(f"Hittade odds för {matches_found_in_api} av {len(df)} lag.")
+        if matches_found_in_api < 8:
+            st.warning("Hittade få odds. Ligorna kanske inte är uppdaterade i API:et än, eller så tog API-kvoten slut.")
+
         table_height = (len(df) * 35) + 38 
         
         tab1, tab2, tab3, tab4 = st.tabs(["💡 Kupong", "📊 Värde", "⚖️ Odds vs Folket", "🔧 Felsökning"])
         
-        # TAB 1: KUPONG (Med "Lag" istället för bara Hemmalag)
         with tab1:
             kupong_view = df[['Match', 'Match_Rubrik', 'Tips', 'Analys']].copy()
             kupong_view.columns = ['Match', 'Lag', 'Tips', 'Analys']
             st.dataframe(kupong_view, hide_index=True, use_container_width=True, height=table_height)
             
-        # TAB 2: VÄRDE
         with tab2:
             st.write("Grönt = Bra värde. Rött = Överstreckat.")
             val_view = df[['Match', 'Match_Rubrik', 'Val_1', 'Val_X', 'Val_2']].copy()
             val_view.columns = ['Match', 'Lag', 'Värde 1', 'Värde X', 'Värde 2']
-            
-            # Färga värdena
             styled_df = val_view.style.applymap(color_value, subset=['Värde 1', 'Värde X', 'Värde 2'])
             st.dataframe(styled_df, hide_index=True, use_container_width=True, height=table_height)
             
-        # TAB 3: ODDS VS FOLKET (Nu med båda lagen i rubriken)
         with tab3:
             st.write("**Jämförelse:** Om Folkets Odds är lägre än Bookmakers = Överstreckat (Dåligt).")
             odds_view = df[['Match', 'Match_Rubrik', 'API_Odds_1', 'Folk_Odds_1', 'API_Odds_X', 'Folk_Odds_X', 'API_Odds_2', 'Folk_Odds_2']].copy()
             odds_view.columns = ['Match', 'Lag', 'Odds 1', 'Folket 1', 'Odds X', 'Folket X', 'Odds 2', 'Folket 2']
             st.dataframe(odds_view, hide_index=True, use_container_width=True, height=table_height)
 
-        # TAB 4: FELSÖKNING
         with tab4:
             st.dataframe(df[['Match', 'Match_Rubrik', 'Matchat_Lag', 'Källa']], hide_index=True, use_container_width=True, height=table_height)
 
