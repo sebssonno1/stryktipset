@@ -7,7 +7,7 @@ from thefuzz import process
 
 # --- KONFIGURATION ---
 ST_PAGE_TITLE = "🐻 Stryktipset: Pro Edition"
-API_KEY = "31e8d45e0996d4e60b6dc48f8c656089" # <--- DIN NYCKEL HÄR
+API_KEY = "5a3f2a65b4106313ca8aac5454ba9383" # <--- DIN NYCKEL HÄR
 CACHE_TIME = 900 
 MATCH_THRESHOLD = 85  # <--- HÅRDARE KRAV: 85% likhet
 
@@ -408,4 +408,5 @@ with st.expander("🕵️ Hittar du inte laget? Klicka här för att söka i API
                              height=400)
             else:
                 st.error("Kunde inte hämta listan. Kolla API-nyckeln.")
+
 
