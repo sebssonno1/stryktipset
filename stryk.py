@@ -86,7 +86,7 @@ TEAM_TRANSLATIONS = {
     "PSV": "PSV Eindhoven"
 }
 
-# --- 1. HÄMTA EXTERNA ODDS ---
+# --- 1. HÄMTA EXTERNA ODDS (DOPAD LISTA) ---
 @st.cache_data(ttl=CACHE_TIME)
 def fetch_external_odds(api_key):
     if not api_key or "DIN_NYCKEL" in api_key:
@@ -94,24 +94,67 @@ def fetch_external_odds(api_key):
 
     all_odds = {}
     
+    # HÄR ÄR DEN NYA SUPER-LISTAN
     leagues = [
-        'soccer_epl', 'soccer_efl_championship', 'soccer_england_league1',      
-        'soccer_england_league2', 'soccer_fa_cup', 'soccer_efl_cup',              
-        'soccer_sweden_allsvenskan', 'soccer_italy_serie_a', 'soccer_spain_la_liga',
-        'soccer_germany_bundesliga', 'soccer_france_ligue_one', 'soccer_netherlands_eredivisie',
-        'soccer_uefa_champs_league', 'soccer_uefa_europa_league', 'soccer_uefa_europa_conference_league'
+        # --- England ---
+        'soccer_epl',                   # Premier League
+        'soccer_efl_championship',      # Championship
+        'soccer_england_league1',       # League 1
+        'soccer_england_league2',       # League 2
+        'soccer_fa_cup',                # FA Cup
+        'soccer_efl_cup',               # League Cup
+        
+        # --- Norden (Viktigt för Stryktipset) ---
+        'soccer_sweden_allsvenskan',    # Allsvenskan
+        'soccer_sweden_superettan',     # Superettan (Ofta med på sommaren)
+        'soccer_norway_eliteserien',    # Norge
+        'soccer_denmark_superliga',     # Danmark
+        
+        # --- Europa Stora ---
+        'soccer_italy_serie_a',         # Serie A
+        'soccer_spain_la_liga',         # La Liga
+        'soccer_germany_bundesliga',    # Bundesliga
+        'soccer_france_ligue_one',      # Ligue 1
+        'soccer_netherlands_eredivisie',# Eredivisie
+        'soccer_portugal_primeira_liga',# Portugal (Dyker ofta upp!)
+        'soccer_turkey_super_league',   # Turkiet
+        
+        # --- Europa Andraligor (Europatipset gillar dessa) ---
+        'soccer_italy_serie_b',         # Serie B
+        'soccer_spain_segunda_division',# La Liga 2
+        'soccer_germany_bundesliga2',   # 2. Bundesliga
+        'soccer_france_ligue_two',      # Ligue 2
+        
+        # --- Skottland ---
+        'soccer_spl',                   # Scottish Premiership
+        
+        # --- Cuper ---
+        'soccer_uefa_champs_league',
+        'soccer_uefa_europa_league',
+        'soccer_uefa_europa_conference_league'
     ]
     
-    for league in leagues:
+    # Förloppsindikator i appen (så man ser att den jobbar)
+    prog_bar = st.progress(0, text="Hämtar odds från olika ligor...")
+    total_leagues = len(leagues)
+    
+    for i, league in enumerate(leagues):
+        # Uppdatera mätaren
+        prog_bar.progress((i + 1) / total_leagues, text=f"Kollar liga: {league}...")
+        
         url = f'https://api.the-odds-api.com/v4/sports/{league}/odds/?apiKey={api_key}&regions=eu&markets=h2h'
         try:
             response = requests.get(url)
+            # 401 = Fel nyckel, 429 = Slut på förfrågningar (Gratis-kvot)
+            if response.status_code == 429:
+                st.warning("⚠️ Varning: Du har nått gränsen för din gratis API-nyckel för stunden.")
+                break 
             if response.status_code != 200: continue
+            
             data = response.json()
             
             for match in data:
                 home_team = match['home_team']
-                # Skapa enkel version för matchning
                 simple_name = home_team.replace(" FC", "").replace(" AFC", "").replace(" BC", "").replace(" SSC", "").strip()
                 
                 bookmakers = match.get('bookmakers', [])
@@ -125,12 +168,16 @@ def fetch_external_odds(api_key):
                     else: ox = outcome['price']
                 
                 odds_data = {'1': o1, 'X': ox, '2': o2}
+                
+                # Spara både fullt namn och enkelt namn
                 all_odds[home_team] = odds_data
                 if simple_name != home_team:
                     all_odds[simple_name] = odds_data
                     
         except Exception:
             pass
+            
+    prog_bar.empty() # Ta bort mätaren när klar
     return all_odds
 
 # --- HJÄLPFUNKTION: STÄDA NAMN ---
@@ -361,3 +408,4 @@ with st.expander("🕵️ Hittar du inte laget? Klicka här för att söka i API
                              height=400)
             else:
                 st.error("Kunde inte hämta listan. Kolla API-nyckeln.")
+
