@@ -61,7 +61,6 @@ TEAM_TRANSLATIONS = {
     "Club Brügge": "Club Brugge KV",
     "Marseille": "Olympique de Marseille",
     "Napoli": "SSC Napoli"
-}
 
 # --- 2. JUSTERING I MATCHNINGS-LOGIKEN ---
 # Leta upp stället i din kod där "process.extractOne" körs och uppdatera till detta:
