@@ -10,6 +10,7 @@ ST_PAGE_TITLE = "🐻 Stryktipset: Precision Edition"
 API_KEY = "31e8d45e0996d4e60b6dc48f8c656089" # <--- DIN NYCKEL HÄR
 CACHE_TIME = 900 
 MATCH_THRESHOLD = 90  # <--- HÖJD TILL 90: Nu gissar den inte vilt längre!
+SVENSKA_SPEL_URL = "https://www.svenskaspel.se/stryktipset"
 
 # --- PLATSHÅLLARTEXT ---
 PLACEHOLDER_TEXT = """Klistra in hela sidan (Ctrl+A) från den vanliga kupongvyn."""
@@ -401,3 +402,4 @@ with st.expander("🕵️ Hittar du inte laget? Klicka här för att söka i API
                 team_list = sorted(list(all_odds.keys()))
                 st.write(f"Hittade **{len(team_list)}** lag totalt.")
                 st.text_area("Kopiera namn:", value="\n".join(team_list), height=400)
+
