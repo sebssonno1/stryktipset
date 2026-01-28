@@ -6,13 +6,13 @@ import re
 from thefuzz import process 
 
 # --- KONFIGURATION ---
-ST_PAGE_TITLE = "🐻 Stryktipset: Säkrare Odds-Edition"
+ST_PAGE_TITLE = "🐻 Stryktipset & Europatipset: Main Page Edition"
 API_KEY = "31e8d45e0996d4e60b6dc48f8c656089" # <--- DIN NYCKEL HÄR
 CACHE_TIME = 900 
-MATCH_THRESHOLD = 85  # <--- HÖJD GRÄNS: Kräver 85% likhet för att koppla odds
+MATCH_THRESHOLD = 85  # <--- HÅRDARE KRAV: 85% likhet för att undvika felmatchningar
 
 # --- PLATSHÅLLARTEXT ---
-PLACEHOLDER_TEXT = """Klistra in texten från fliken 'X-perten' för bäst resultat."""
+PLACEHOLDER_TEXT = """Klistra in hela sidan (Ctrl+A) från den vanliga kupongvyn."""
 
 # --- ÖVERSÄTTNINGSLISTA ---
 TEAM_TRANSLATIONS = {
@@ -109,13 +109,11 @@ def fetch_external_odds(api_key):
             
             for match in data:
                 home_team = match['home_team']
-                # Skapa enkel version för matchning
                 simple_name = home_team.replace(" FC", "").replace(" AFC", "").replace(" BC", "").replace(" SSC", "").strip()
                 
                 bookmakers = match.get('bookmakers', [])
                 if not bookmakers: continue
                 
-                # Hämta bästa odds (oftast första bookmakern)
                 outcomes = bookmakers[0]['markets'][0]['outcomes']
                 o1, ox, o2 = 0, 0, 0
                 for outcome in outcomes:
@@ -134,11 +132,12 @@ def fetch_external_odds(api_key):
 
 # --- HJÄLPFUNKTION: STÄDA NAMN ---
 def clean_team_name(name):
-    name = re.sub(r'^\d+[\.\s]*', '', name)
-    name = name.replace("1X2", "")
+    name = re.sub(r'^\d+[\.\s]*', '', name) # Ta bort siffra i början
+    name = name.replace("1X2", "") # Ta bort skräptext
+    name = name.replace("1", "").replace("X", "").replace("2", "") # Ta bort lösa tecken om de klistrats in
     return name.strip()
 
-# --- 2. LÄS PASTE ---
+# --- 2. LÄS PASTE (Hela Sidan-logik) ---
 def parse_svenskaspel_paste(text_content):
     matches = []
     lines = [line.strip() for line in text_content.split('\n') if line.strip()]
@@ -148,49 +147,64 @@ def parse_svenskaspel_paste(text_content):
     while i < len(lines):
         line = lines[i]
         
-        # 1. Hitta matchnummer
-        if re.match(r'^(1[0-3]|[1-9])([\.\s]|$)', line):
+        # 1. Hitta matchnummer (Ensam siffra 1-13)
+        # Den vanliga vyn har ofta siffran på en helt egen rad
+        if line.isdigit() and 1 <= int(line) <= 13:
             try:
-                for offset in range(0, 5):
+                # Sök nedåt efter lagnamn och bindestreck
+                found_teams = False
+                for offset in range(1, 6):
                     if i + offset < len(lines):
                         txt = lines[i+offset]
-                        if '-' in txt and len(txt) > 3: 
-                            if txt.strip() == '-': 
-                                hemmalag = lines[i+offset-1]
-                                bortalag = lines[i+offset+1]
-                            else:
-                                parts = txt.split('-')
-                                hemmalag = parts[0]
-                                bortalag = parts[1]
-                            
-                            current_match = {
-                                'Match': int(re.search(r'\d+', line).group()), 
-                                'Hemmalag': clean_team_name(hemmalag), 
-                                'Bortalag': clean_team_name(bortalag)
-                            }
+                        
+                        # Fall A: "Liverpool - Newcastle" på samma rad
+                        if '-' in txt and len(txt) > 3:
+                            parts = txt.split('-')
+                            hemmalag = parts[0]
+                            bortalag = parts[1]
+                            current_match = {'Match': int(line), 'Hemmalag': clean_team_name(hemmalag), 'Bortalag': clean_team_name(bortalag)}
+                            found_teams = True
+                            break
+                        
+                        # Fall B: "Liverpool", "-", "Newcastle" på olika rader (Vanligt vid mobilkopiering)
+                        elif txt == '-' and (i+offset+1) < len(lines):
+                            hemmalag = lines[i+offset-1]
+                            bortalag = lines[i+offset+1]
+                            current_match = {'Match': int(line), 'Hemmalag': clean_team_name(hemmalag), 'Bortalag': clean_team_name(bortalag)}
+                            found_teams = True
                             break
             except Exception: pass
         
         # 2. Hitta Svenska Folket (%)
-        if current_match and ("%" in line or "Svenska Folket" in line):
-            temp_pcts = []
-            scan_range = 4 
-            for offset in range(0, scan_range):
-                if i + offset < len(lines):
-                    found = re.findall(r'(\d+)%', lines[i+offset])
-                    for val in found:
-                        temp_pcts.append(int(val))
+        # I den vanliga vyn kan detta stå långt under matchnamnet
+        if current_match and ("Svenska Folket" in line or "Svenska folket" in line):
+            try:
+                temp_pcts = []
+                # Leta i de närmaste raderna efter procent
+                for offset in range(0, 4):
+                    if i + offset < len(lines):
+                        check_line = lines[i+offset]
+                        # Ibland sitter de ihop: "51%26%23%" -> regex fixar detta
+                        found = re.findall(r'(\d+)%', check_line)
+                        for val in found:
+                            temp_pcts.append(int(val))
+                
+                if len(temp_pcts) >= 3:
+                    # Ta de tre första vi hittar (1, X, 2)
+                    current_match.update({'Streck_1': temp_pcts[0], 'Streck_X': temp_pcts[1], 'Streck_2': temp_pcts[2]})
+                    
+                    # Om vi har både lag och streck, spara matchen!
+                    if 'Hemmalag' in current_match:
+                         # Dubbelkolla så vi inte lägger till samma match flera gånger
+                         if not any(m['Match'] == current_match['Match'] for m in matches):
+                             matches.append(current_match)
+                             current_match = {} # Nollställ inför nästa match
+            except ValueError: pass
             
-            if len(temp_pcts) >= 3:
-                current_match.update({'Streck_1': temp_pcts[0], 'Streck_X': temp_pcts[1], 'Streck_2': temp_pcts[2]})
-        
-        # 3. Spara match
-        if 'Streck_1' in current_match:
-             if not any(m['Match'] == current_match['Match'] for m in matches):
-                 matches.append(current_match)
-                 current_match = {} 
-        
         i += 1
+    
+    # Sortera matcherna på nummer för snygghetens skull
+    matches = sorted(matches, key=lambda x: x['Match'])
     return matches
 
 # --- 3. BERÄKNINGAR ---
@@ -199,7 +213,6 @@ def calculate_probabilities(row):
     ox = row.get('API_Odds_X', 0)
     o2 = row.get('API_Odds_2', 0)
     
-    # Om odds saknas, returnera 0
     if o1 == 0 or ox == 0 or o2 == 0:
         return 0, 0, 0
         
@@ -213,7 +226,6 @@ def suggest_sign_and_status(row):
     
     prob1 = row.get('Prob_1', 0)
     
-    # Om odds saknas (Prob = 0), ge ingen analys
     if prob1 == 0:
         return "❓", "Saknar Odds"
 
@@ -243,9 +255,9 @@ st.set_page_config(page_title="Stryktipset & Europatipset", layout="wide")
 st.title(ST_PAGE_TITLE)
 
 with st.expander("ℹ️ Instruktioner", expanded=True):
-    st.write("1. Gå till fliken **X-perten** på Svenska Spel.")
-    st.write("2. Markera allt (Ctrl+A) och kopiera (Ctrl+C).")
-    st.write("3. Klistra in nedan.")
+    st.write("1. Gå till Stryktipset eller Europatipset.")
+    st.write("2. Se till att du är på standardvyn (kupongen).")
+    st.write("3. Markera allt (Ctrl+A), kopiera (Ctrl+C) och klistra in nedan.")
 
 # --- FORMULÄR ---
 with st.form("input_form"):
@@ -255,9 +267,12 @@ with st.form("input_form"):
 if submitted and text_input:
     matches_data = parse_svenskaspel_paste(text_input)
     
-    if not matches_data or len(matches_data) < 13:
-        st.error(f"Hittade bara {len(matches_data)} matcher. Kopiera från X-perten!")
-    else:
+    if not matches_data:
+        st.error("Hittade inga matcher. Kopierade du hela sidan?")
+    elif len(matches_data) < 13:
+        st.warning(f"Hittade bara {len(matches_data)} av 13 matcher. Resultatet kan vara ofullständigt.")
+    
+    if matches_data:
         with st.spinner('Hämtar odds...'):
             external_odds = fetch_external_odds(API_KEY)
         
@@ -271,19 +286,19 @@ if submitted and text_input:
             search_name = TEAM_TRANSLATIONS.get(original_name, original_name)
             
             matched = False
-            m['Matchat_Lag'] = "-" # Default om inget hittas
+            m['Matchat_Lag'] = "-" 
             
             if external_odds:
                 match_name, score = process.extractOne(search_name, odds_teams)
                 
-                # --- HÄR ÄR ÄNDRINGEN: HÖGRE KRAV (85) ---
+                # --- MATCH THRESHOLD ---
                 if score >= MATCH_THRESHOLD: 
                     odds = external_odds[match_name]
                     m['API_Odds_1'] = odds['1']
                     m['API_Odds_X'] = odds['X']
                     m['API_Odds_2'] = odds['2']
                     m['Källa'] = "Odds API"
-                    m['Matchat_Lag'] = match_name # Visar vad den hittade
+                    m['Matchat_Lag'] = match_name 
                     matches_found_in_api += 1
                     matched = True
             
@@ -316,7 +331,7 @@ if submitted and text_input:
             if val < -10: return 'background-color: #ffcccb; color: black' # Röd
             return ''
 
-        st.success(f"Hittade odds för {matches_found_in_api} av 13 lag.")
+        st.success(f"Hittade odds för {matches_found_in_api} av {len(df)} lag.")
         
         table_height = (len(df) * 35) + 38 
         tab1, tab2, tab3 = st.tabs(["💡 Kupong", "📊 Värde", "🎲 Odds & Felsökning"])
@@ -330,5 +345,5 @@ if submitted and text_input:
             st.dataframe(styled_df, hide_index=True, use_container_width=True, height=table_height)
             
         with tab3:
-            st.write("**Kolla kolumnen 'Matchat_Lag'** – ser det tokigt ut? Då har API:et matchat fel.")
+            st.write("**Kolla kolumnen 'Matchat_Lag'** – om det står fel lag där blir analysen fel.")
             st.dataframe(df[['Match', 'Hemmalag', 'Matchat_Lag', 'API_Odds_1', 'API_Odds_X', 'API_Odds_2']], hide_index=True, use_container_width=True, height=table_height)
