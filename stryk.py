@@ -6,17 +6,19 @@ import re
 from thefuzz import process 
 
 # --- KONFIGURATION ---
-ST_PAGE_TITLE = "🐻 Stryktipset & Europatipset: Main Page Edition"
+ST_PAGE_TITLE = "🐻 Stryktipset: Manual Match Edition"
 API_KEY = "31e8d45e0996d4e60b6dc48f8c656089" # <--- DIN NYCKEL HÄR
 CACHE_TIME = 900 
-MATCH_THRESHOLD = 85  # <--- HÅRDARE KRAV: 85% likhet för att undvika felmatchningar
+MATCH_THRESHOLD = 85  # <--- HÅRDARE KRAV: 85% likhet
 
 # --- PLATSHÅLLARTEXT ---
 PLACEHOLDER_TEXT = """Klistra in hela sidan (Ctrl+A) från den vanliga kupongvyn."""
 
 # --- ÖVERSÄTTNINGSLISTA ---
+# Fyll på denna lista när du hittar lag som inte matchar!
+# "Namn på Svenska Spel": "Namn i API:et"
 TEAM_TRANSLATIONS = {
-    # Engelska lag
+    # England
     "Sheffield U": "Sheffield United",
     "Sheffield W": "Sheffield Wednesday",
     "QPR": "Queens Park Rangers",
@@ -48,8 +50,9 @@ TEAM_TRANSLATIONS = {
     "Nott. Forest": "Nottingham Forest",
     "Newcastle": "Newcastle United",
     "West Ham": "West Ham United",
+    "Brighton": "Brighton and Hove Albion",
     
-    # Svenska lag
+    # Sverige
     "IFK Gbg": "IFK Göteborg",
     "Malmö": "Malmö FF",
     "Djurgården": "Djurgårdens IF",
@@ -58,7 +61,7 @@ TEAM_TRANSLATIONS = {
     "Västerås": "Västerås SK",
     "Brommapojk": "IF Brommapojkarna",
 
-    # Europeiska lag
+    # Europa
     "Inter": "Internazionale",
     "Milan": "AC Milan",
     "Roma": "AS Roma",
@@ -109,6 +112,7 @@ def fetch_external_odds(api_key):
             
             for match in data:
                 home_team = match['home_team']
+                # Skapa enkel version för matchning
                 simple_name = home_team.replace(" FC", "").replace(" AFC", "").replace(" BC", "").replace(" SSC", "").strip()
                 
                 bookmakers = match.get('bookmakers', [])
@@ -132,9 +136,9 @@ def fetch_external_odds(api_key):
 
 # --- HJÄLPFUNKTION: STÄDA NAMN ---
 def clean_team_name(name):
-    name = re.sub(r'^\d+[\.\s]*', '', name) # Ta bort siffra i början
-    name = name.replace("1X2", "") # Ta bort skräptext
-    name = name.replace("1", "").replace("X", "").replace("2", "") # Ta bort lösa tecken om de klistrats in
+    name = re.sub(r'^\d+[\.\s]*', '', name) 
+    name = name.replace("1X2", "") 
+    name = name.replace("1", "").replace("X", "").replace("2", "")
     return name.strip()
 
 # --- 2. LÄS PASTE (Hela Sidan-logik) ---
@@ -147,63 +151,45 @@ def parse_svenskaspel_paste(text_content):
     while i < len(lines):
         line = lines[i]
         
-        # 1. Hitta matchnummer (Ensam siffra 1-13)
-        # Den vanliga vyn har ofta siffran på en helt egen rad
+        # 1. Hitta matchnummer
         if line.isdigit() and 1 <= int(line) <= 13:
             try:
-                # Sök nedåt efter lagnamn och bindestreck
-                found_teams = False
                 for offset in range(1, 6):
                     if i + offset < len(lines):
                         txt = lines[i+offset]
-                        
-                        # Fall A: "Liverpool - Newcastle" på samma rad
                         if '-' in txt and len(txt) > 3:
                             parts = txt.split('-')
                             hemmalag = parts[0]
                             bortalag = parts[1]
                             current_match = {'Match': int(line), 'Hemmalag': clean_team_name(hemmalag), 'Bortalag': clean_team_name(bortalag)}
-                            found_teams = True
                             break
-                        
-                        # Fall B: "Liverpool", "-", "Newcastle" på olika rader (Vanligt vid mobilkopiering)
                         elif txt == '-' and (i+offset+1) < len(lines):
                             hemmalag = lines[i+offset-1]
                             bortalag = lines[i+offset+1]
                             current_match = {'Match': int(line), 'Hemmalag': clean_team_name(hemmalag), 'Bortalag': clean_team_name(bortalag)}
-                            found_teams = True
                             break
             except Exception: pass
         
-        # 2. Hitta Svenska Folket (%)
-        # I den vanliga vyn kan detta stå långt under matchnamnet
+        # 2. Hitta Svenska Folket
         if current_match and ("Svenska Folket" in line or "Svenska folket" in line):
             try:
                 temp_pcts = []
-                # Leta i de närmaste raderna efter procent
                 for offset in range(0, 4):
                     if i + offset < len(lines):
                         check_line = lines[i+offset]
-                        # Ibland sitter de ihop: "51%26%23%" -> regex fixar detta
                         found = re.findall(r'(\d+)%', check_line)
                         for val in found:
                             temp_pcts.append(int(val))
                 
                 if len(temp_pcts) >= 3:
-                    # Ta de tre första vi hittar (1, X, 2)
                     current_match.update({'Streck_1': temp_pcts[0], 'Streck_X': temp_pcts[1], 'Streck_2': temp_pcts[2]})
-                    
-                    # Om vi har både lag och streck, spara matchen!
                     if 'Hemmalag' in current_match:
-                         # Dubbelkolla så vi inte lägger till samma match flera gånger
                          if not any(m['Match'] == current_match['Match'] for m in matches):
                              matches.append(current_match)
-                             current_match = {} # Nollställ inför nästa match
+                             current_match = {}
             except ValueError: pass
-            
         i += 1
     
-    # Sortera matcherna på nummer för snygghetens skull
     matches = sorted(matches, key=lambda x: x['Match'])
     return matches
 
@@ -225,7 +211,6 @@ def suggest_sign_and_status(row):
     status = ""
     
     prob1 = row.get('Prob_1', 0)
-    
     if prob1 == 0:
         return "❓", "Saknar Odds"
 
@@ -291,7 +276,6 @@ if submitted and text_input:
             if external_odds:
                 match_name, score = process.extractOne(search_name, odds_teams)
                 
-                # --- MATCH THRESHOLD ---
                 if score >= MATCH_THRESHOLD: 
                     odds = external_odds[match_name]
                     m['API_Odds_1'] = odds['1']
@@ -312,7 +296,6 @@ if submitted and text_input:
 
         df = pd.DataFrame(final_rows)
         
-        # Beräkningar
         probs = df.apply(calculate_probabilities, axis=1, result_type='expand')
         df[['Prob_1', 'Prob_X', 'Prob_2']] = probs
         
@@ -324,11 +307,10 @@ if submitted and text_input:
         df['Tips'] = results[0]
         df['Analys'] = results[1]
 
-        # Färgsätt värde
         def color_value(val):
             if pd.isna(val): return ''
-            if val > 7: return 'background-color: #90ee90; color: black' # Grön
-            if val < -10: return 'background-color: #ffcccb; color: black' # Röd
+            if val > 7: return 'background-color: #90ee90; color: black' 
+            if val < -10: return 'background-color: #ffcccb; color: black' 
             return ''
 
         st.success(f"Hittade odds för {matches_found_in_api} av {len(df)} lag.")
@@ -347,3 +329,20 @@ if submitted and text_input:
         with tab3:
             st.write("**Kolla kolumnen 'Matchat_Lag'** – om det står fel lag där blir analysen fel.")
             st.dataframe(df[['Match', 'Hemmalag', 'Matchat_Lag', 'API_Odds_1', 'API_Odds_X', 'API_Odds_2']], hide_index=True, use_container_width=True, height=table_height)
+
+# --- SPION-VERKTYG (MANUELL SÖKNING) ---
+st.divider()
+with st.expander("🕵️ Hittar du inte laget? Klicka här för att söka i API:et"):
+    st.write("Klicka på knappen nedan för att se exakt vilka namn API:et använder.")
+    if st.button("Hämta alla lagnamn från API"):
+        with st.spinner("Hämtar listan..."):
+            all_odds = fetch_external_odds(API_KEY)
+            if all_odds:
+                # Sorterad lista på alla lagnamn
+                team_list = sorted(list(all_odds.keys()))
+                st.write(f"Hittade **{len(team_list)}** lag totalt.")
+                st.text_area("Kopiera namnet härifrån och lägg in i koden (TEAM_TRANSLATIONS):", 
+                             value="\n".join(team_list), 
+                             height=400)
+            else:
+                st.error("Kunde inte hämta listan. Kolla API-nyckeln.")
