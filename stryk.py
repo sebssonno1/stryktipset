@@ -277,8 +277,10 @@ def suggest_sign_and_status(row):
     return "".join(sorted(tecken)), status
 
 # --- APP LAYOUT ---
-# --- INSTRUKTIONER & LÄNK ---
-with st.expander("ℹ️ Instruktioner & Länkar", expanded=True):
+st.set_page_config(page_title="Stryktipset & Europatipset", layout="wide")
+st.title(ST_PAGE_TITLE)
+
+with st.expander("ℹ️ Instruktioner", expanded=True):
     col1, col2 = st.columns([2, 1])
     with col1:
         st.write("1. Markera allt (Ctrl+A) på Svenska Spel, kopiera (Ctrl+C).")
