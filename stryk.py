@@ -6,7 +6,7 @@ import re
 from thefuzz import process 
 
 # --- KONFIGURATION ---
-ST_PAGE_TITLE = "🐻 Stryktipset: Manual Match Edition"
+ST_PAGE_TITLE = "🐻 Stryktipset: Pro Edition"
 API_KEY = "31e8d45e0996d4e60b6dc48f8c656089" # <--- DIN NYCKEL HÄR
 CACHE_TIME = 900 
 MATCH_THRESHOLD = 85  # <--- HÅRDARE KRAV: 85% likhet
@@ -16,7 +16,6 @@ PLACEHOLDER_TEXT = """Klistra in hela sidan (Ctrl+A) från den vanliga kupongvyn
 
 # --- ÖVERSÄTTNINGSLISTA ---
 # Fyll på denna lista när du hittar lag som inte matchar!
-# "Namn på Svenska Spel": "Namn i API:et"
 TEAM_TRANSLATIONS = {
     # England
     "Sheffield U": "Sheffield United",
@@ -296,6 +295,7 @@ if submitted and text_input:
 
         df = pd.DataFrame(final_rows)
         
+        # 1. Grundberäkningar
         probs = df.apply(calculate_probabilities, axis=1, result_type='expand')
         df[['Prob_1', 'Prob_X', 'Prob_2']] = probs
         
@@ -307,6 +307,12 @@ if submitted and text_input:
         df['Tips'] = results[0]
         df['Analys'] = results[1]
 
+        # 2. Räkna ut Folkets Odds (För jämförelsefliken)
+        df['Folk_Odds_1'] = df['Streck_1'].apply(lambda x: round(100/x, 2) if x > 0 else 0)
+        df['Folk_Odds_X'] = df['Streck_X'].apply(lambda x: round(100/x, 2) if x > 0 else 0)
+        df['Folk_Odds_2'] = df['Streck_2'].apply(lambda x: round(100/x, 2) if x > 0 else 0)
+
+        # Färgsättning
         def color_value(val):
             if pd.isna(val): return ''
             if val > 7: return 'background-color: #90ee90; color: black' 
@@ -316,7 +322,7 @@ if submitted and text_input:
         st.success(f"Hittade odds för {matches_found_in_api} av {len(df)} lag.")
         
         table_height = (len(df) * 35) + 38 
-        tab1, tab2, tab3 = st.tabs(["💡 Kupong", "📊 Värde", "🎲 Odds & Felsökning"])
+        tab1, tab2, tab3, tab4 = st.tabs(["💡 Kupong", "📊 Värde", "⚖️ Odds vs Folket", "🔧 Felsökning"])
         
         with tab1:
             st.dataframe(df[['Match', 'Hemmalag', 'Bortalag', 'Tips', 'Analys']], hide_index=True, use_container_width=True, height=table_height)
@@ -327,8 +333,17 @@ if submitted and text_input:
             st.dataframe(styled_df, hide_index=True, use_container_width=True, height=table_height)
             
         with tab3:
-            st.write("**Kolla kolumnen 'Matchat_Lag'** – om det står fel lag där blir analysen fel.")
-            st.dataframe(df[['Match', 'Hemmalag', 'Matchat_Lag', 'API_Odds_1', 'API_Odds_X', 'API_Odds_2']], hide_index=True, use_container_width=True, height=table_height)
+            st.write("**Jämför Bookmakers odds mot Folkets odds.**")
+            st.write("Om 'Folkets Odds' är *lägre* än Bookmakers = Folket överskattar laget (Dåligt värde).")
+            
+            odds_view = df[['Match', 'Hemmalag', 'API_Odds_1', 'Folk_Odds_1', 'API_Odds_X', 'Folk_Odds_X', 'API_Odds_2', 'Folk_Odds_2']].copy()
+            odds_view.columns = ['Match', 'Lag', 'Odds 1', 'Folket 1', 'Odds X', 'Folket X', 'Odds 2', 'Folket 2']
+            st.dataframe(odds_view, hide_index=True, use_container_width=True, height=table_height)
+
+        with tab4:
+            st.write("**Kontrollera matchningen här.**")
+            st.write("Om 'Matchat Lag' ser konstigt ut, använd Spion-verktyget nedan för att hitta rätt namn och uppdatera koden.")
+            st.dataframe(df[['Match', 'Hemmalag', 'Bortalag', 'Matchat_Lag', 'Källa']], hide_index=True, use_container_width=True, height=table_height)
 
 # --- SPION-VERKTYG (MANUELL SÖKNING) ---
 st.divider()
