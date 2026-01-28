@@ -6,7 +6,7 @@ import re
 from thefuzz import process 
 
 # --- KONFIGURATION ---
-ST_PAGE_TITLE = "🐻 Stryktipset: Precision Edition"
+ST_PAGE_TITLE = "🐻 Stryktipset"
 API_KEY = "31e8d45e0996d4e60b6dc48f8c656089" # <--- DIN NYCKEL HÄR
 CACHE_TIME = 900 
 MATCH_THRESHOLD = 90  # <--- HÖJD TILL 90: Nu gissar den inte vilt längre!
