@@ -39,6 +39,58 @@ TEAM_TRANSLATIONS = {
     "Marseille": "Olympique de Marseille",
     "Ajax": "Ajax Amsterdam",
     "Bodö/Glimt": "Bodo/Glimt"
+    # Engelska lag
+    "Tottenham": "Tottenham Hotspur",
+    "Chelsea": "Chelsea FC",
+    "Newcastle": "Newcastle United",
+    
+    # Europatipset / Internationella (Fixar de som saknades)
+    "Paris Saint-Germain": "Paris Saint Germain",
+    "Benfica": "SL Benfica",
+    "Real Madrid": "Real Madrid",
+    "Frankfurt": "Eintracht Frankfurt",
+    "PSV Eindhoven": "PSV",
+    "Bayern München": "Bayern Munich",
+    "Galatasaray": "Galatasaray",
+    "Atlético Madrid": "Atletico Madrid",
+    "Bodö/Glimt": "Bodo/Glimt",
+    "Royale Union SG": "Union St. Gilloise",
+    "Atalanta": "Atalanta BC",
+    "Ajax": "Ajax Amsterdam",
+    "Olympiakos": "Olympiacos",
+    "Club Brügge": "Club Brugge KV",
+    "Marseille": "Olympique de Marseille",
+    "Napoli": "SSC Napoli"
+}
+
+# --- 2. JUSTERING I MATCHNINGS-LOGIKEN ---
+# Leta upp stället i din kod där "process.extractOne" körs och uppdatera till detta:
+
+        for m in matches_data:
+            original_name = m['Hemmalag'].strip()
+            # Här kollar vi om namnet finns i vår översättningslista först
+            search_name = TEAM_TRANSLATIONS.get(original_name, original_name)
+            
+            match_name, score = process.extractOne(search_name, odds_teams) if odds_teams else (None, 0)
+            
+            # Sänker tröskeln till 50 eftersom vi nu har en bättre "search_name"
+            if score > 50: 
+                odds = external_odds[match_name]
+                m.update({
+                    'API_Odds_1': odds['1'], 
+                    'API_Odds_X': odds['X'], 
+                    'API_Odds_2': odds['2'], 
+                    'Källa': "The Odds API"
+                })
+                matches_found_in_api += 1
+            else:
+                # Om den fortfarande inte hittas, använd SvS egna odds från klistret
+                m.update({
+                    'API_Odds_1': None, 
+                    'API_Odds_X': None, 
+                    'API_Odds_2': None, 
+                    'Källa': "SvS (Eget Odds)"
+                })
 }
 
 # --- 1. HÄMTA EXTERNA ODDS ---
@@ -225,3 +277,4 @@ if submitted and text_input:
         
         with st.expander("Se detaljerat värde (Procentenheter)"):
             st.dataframe(df[['Match', 'Hemmalag', 'Val_1', 'Val_X', 'Val_2']].style.background_gradient(cmap='RdYlGn', axis=None), use_container_width=True)
+
