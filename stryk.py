@@ -182,20 +182,22 @@ if submitted and text_input:
             m['Matchat_Lag'] = "-" 
             
             if external_odds:
-                # Fuzzy matchning med strikt tröskel
-                match_name, score = process.extractOne(search_name, odds_teams)
+                # FIX: Ändrade search_name till original_name
+                result = process.extractOne(original_name, odds_teams)
                 
-                # VIKTIGT: Om score är under 90, godkänn INTE matchningen!
-                # Detta stoppar "Middlesbrough -> Köln"
-                if score >= MATCH_THRESHOLD: 
-                    odds = external_odds[match_name]
-                    m['API_Odds_1'] = odds['1']
-                    m['API_Odds_X'] = odds['X']
-                    m['API_Odds_2'] = odds['2']
-                    m['Källa'] = "Odds API"
-                    m['Matchat_Lag'] = match_name 
-                    matches_found_in_api += 1
-                    matched = True
+                if result:
+                    match_name, score = result[0], result[1]
+                    
+                    # Om score är under 90, godkänn INTE matchningen!
+                    if score >= MATCH_THRESHOLD: 
+                        odds = external_odds[match_name]
+                        m['API_Odds_1'] = odds['1']
+                        m['API_Odds_X'] = odds['X']
+                        m['API_Odds_2'] = odds['2']
+                        m['Källa'] = "Odds API"
+                        m['Matchat_Lag'] = match_name 
+                        matches_found_in_api += 1
+                        matched = True
             
             if not matched:
                 m['Källa'] = "Saknas"
@@ -270,6 +272,7 @@ with st.expander("🕵️ Hittar du inte laget? Klicka här för att söka i API
                 team_list = sorted(list(all_odds.keys()))
                 st.write(f"Hittade **{len(team_list)}** lag totalt.")
                 st.text_area("Kopiera namn:", value="\n".join(team_list), height=400)
+
 
 
 
