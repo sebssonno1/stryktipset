@@ -213,7 +213,7 @@ with st.form("input_form"):
     )
     
     text_input = st.text_area("Klistra in kupongen här:", height=300)
-    submitted = st.form_submit_button("🚀 Kör Analys & Optimering", type="primary", use_container_width=True)
+    submitted = st.form_submit_button("🚀 Kör Analys", type="primary", use_container_width=True)
 
 if submitted and text_input:
     raw_data = parse_svenskaspel_paste(text_input)
@@ -282,4 +282,5 @@ if submitted and text_input:
 
         with tab4:
             st.dataframe(df, use_container_width=True)
+
 
