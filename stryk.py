@@ -3,7 +3,7 @@ import pandas as pd
 import re
 
 # --- KONFIGURATION ---
-ST_PAGE_TITLE = "🐻 Stryktipset: Budget Optimizer (Valfri summa)"
+ST_PAGE_TITLE = "🐻 Stryktipset: Budget Optimizer (Corrected)"
 SVENSKA_SPEL_URL = "https://www.svenskaspel.se/stryktipset"
 
 # --- HJÄLPFUNKTIONER ---
@@ -36,9 +36,7 @@ def optimize_system(df, max_budget):
     current_cost = calculate_cost(df)
     
     # Loopa tills vi är under budget
-    iteration = 0
     while current_cost > max_budget:
-        iteration += 1
         # Hitta garderingar (längd > 1) som vi kan ta bort
         mask = df['Tips'].apply(len) > 1
         candidates = df[mask].copy()
@@ -203,8 +201,14 @@ with st.expander("ℹ️ Instruktioner", expanded=True):
         st.link_button("Öppna Stryktipset ↗️", SVENSKA_SPEL_URL, use_container_width=True)
 
 with st.form("input_form"):
-    # HÄR ÄR DEN NYA BUDGET-RUTAN
-    user_budget = st.number_input("💰 Max budget för systemet (kr):", min_value=1, value=600, step=10, help("Scriptet tar bort garderingar på de 'säkraste' matcherna tills priset är under din budget."))
+    # HÄR ÄR DEN RÄTTADE RADEN:
+    user_budget = st.number_input(
+        "💰 Max budget för systemet (kr):", 
+        min_value=1, 
+        value=600, 
+        step=10, 
+        help="Scriptet tar bort garderingar på de 'säkraste' matcherna tills priset är under din budget."
+    )
     
     text_input = st.text_area("Klistra in kupongen här:", height=300)
     submitted = st.form_submit_button("🚀 Kör Analys & Optimering", type="primary", use_container_width=True)
