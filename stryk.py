@@ -178,7 +178,6 @@ if submitted and text_input:
 
         for m in matches_data:
             original_name = m['Hemmalag']
-            search_name = TEAM_TRANSLATIONS.get(original_name, original_name)
             matched = False
             m['Matchat_Lag'] = "-" 
             
@@ -271,6 +270,7 @@ with st.expander("🕵️ Hittar du inte laget? Klicka här för att söka i API
                 team_list = sorted(list(all_odds.keys()))
                 st.write(f"Hittade **{len(team_list)}** lag totalt.")
                 st.text_area("Kopiera namn:", value="\n".join(team_list), height=400)
+
 
 
 
