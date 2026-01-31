@@ -281,7 +281,8 @@ if submitted and text_input:
             st.dataframe(comp_df.style.format("{:.1f}", subset=['Odds 1 (%)', 'Odds X (%)', 'Odds 2 (%)']), hide_index=True, use_container_width=True, height=h)
 
         with tab4:
-            st.dataframe(df, use_container_width=True)
+            st.dataframe(df, use_container_width=True, height=h)
+
 
 
 
