@@ -15,125 +15,6 @@ SVENSKA_SPEL_URL = "https://www.svenskaspel.se/stryktipset"
 # --- PLATSHÅLLARTEXT ---
 PLACEHOLDER_TEXT = """Klistra in hela sidan (Ctrl+A) från den vanliga kupongvyn."""
 
-# --- ÖVERSÄTTNINGSLISTA (MEGA-UPPDATERING) ---
-# Här har jag lagt in exakt vad API:et kallar lagen
-TEAM_TRANSLATIONS = {
-    # --- PREMIER LEAGUE ---
-    "Arsenal": "Arsenal",
-    "Aston Villa": "Aston Villa",
-    "Bournemouth": "Bournemouth",
-    "Brentford": "Brentford",
-    "Brighton": "Brighton and Hove Albion",
-    "Chelsea": "Chelsea",
-    "Crystal P": "Crystal Palace",
-    "Crystal Palace": "Crystal Palace",
-    "Everton": "Everton",
-    "Fulham": "Fulham",
-    "Ipswich": "Ipswich Town", # Fixad
-    "Leicester": "Leicester City",
-    "Liverpool": "Liverpool",
-    "Man City": "Manchester City",
-    "Man United": "Manchester United",
-    "Newcastle": "Newcastle United",
-    "Nott. Forest": "Nottingham Forest",
-    "Nottingham": "Nottingham Forest",
-    "Southampton": "Southampton",
-    "Tottenham": "Tottenham Hotspur",
-    "West Ham": "West Ham United",
-    "Wolverhampton": "Wolverhampton Wanderers",
-    "Wolves": "Wolverhampton Wanderers",
-
-    # --- CHAMPIONSHIP (PROBLEMOMRÅDET) ---
-    "Blackburn": "Blackburn Rovers",
-    "Bristol C": "Bristol City",
-    "Burnley": "Burnley FC", # API heter ofta FC
-    "Cardiff": "Cardiff City",
-    "Coventry": "Coventry City",
-    "Derby": "Derby County",
-    "Hull": "Hull City", # Fixad
-    "Leeds": "Leeds United",
-    "Luton": "Luton Town",
-    "Middlesbrough": "Middlesbrough FC",
-    "Millwall": "Millwall FC", # Fixad
-    "Norwich": "Norwich City",
-    "Oxford": "Oxford United", # Fixad
-    "Plymouth": "Plymouth Argyle",
-    "Portsmouth": "Portsmouth FC", # Fixad
-    "Preston": "Preston North End",
-    "QPR": "Queens Park Rangers",
-    "Queens Park Rangers": "Queens Park Rangers",
-    "Sheffield U": "Sheffield United",
-    "Sheffield W": "Sheffield Wednesday",
-    "Stoke": "Stoke City",
-    "Sunderland": "Sunderland AFC",
-    "Swansea": "Swansea City", # Fixad
-    "Watford": "Watford FC", # Fixad
-    "West Bromwich": "West Bromwich Albion",
-    "WBA": "West Bromwich Albion",
-
-    # --- LEAGUE 1 & 2 (Vanliga på kupongen) ---
-    "Barnsley": "Barnsley FC",
-    "Birmingham": "Birmingham City", # Fixad
-    "Blackpool": "Blackpool FC",
-    "Bolton": "Bolton Wanderers",
-    "Charlton": "Charlton Athletic",
-    "Huddersfield": "Huddersfield Town",
-    "Leyton Orient": "Leyton Orient",
-    "Lincoln": "Lincoln City",
-    "Northampton": "Northampton Town",
-    "Peterborough": "Peterborough United",
-    "Reading": "Reading FC",
-    "Rotherham": "Rotherham United",
-    "Shrewsbury": "Shrewsbury Town",
-    "Stevenage": "Stevenage FC",
-    "Stockport": "Stockport County",
-    "Wigan": "Wigan Athletic",
-    "Wrexham": "Wrexham FC",
-    "Wycombe": "Wycombe Wanderers",
-
-    # --- SVENSKA ---
-    "IFK Gbg": "IFK Göteborg",
-    "Malmö": "Malmö FF",
-    "Djurgården": "Djurgårdens IF",
-    "AIK": "AIK Stockholm",
-    "Häcken": "BK Häcken",
-    "Västerås": "Västerås SK",
-    "Brommapojk": "IF Brommapojkarna",
-    "Sirius": "IK Sirius",
-    "Mjällby": "Mjällby AIF",
-    "Halmstad": "Halmstads BK",
-    "Kalmar": "Kalmar FF",
-    "Värnamo": "IFK Värnamo",
-    "Elfsborg": "IF Elfsborg",
-    "Hammarby": "Hammarby IF",
-    "Norrköping": "IFK Norrköping",
-
-    # --- EUROPA (STORLAG) ---
-    "Inter": "Internazionale",
-    "Milan": "AC Milan",
-    "Roma": "AS Roma",
-    "Lazio": "SS Lazio",
-    "Napoli": "SSC Napoli",
-    "Juventus": "Juventus FC",
-    "Atalanta": "Atalanta BC",
-    "Barcelona": "FC Barcelona",
-    "R. Madrid": "Real Madrid",
-    "Atl. Madrid": "Atletico Madrid",
-    "Bilbao": "Athletic Club Bilbao",
-    "Real Sociedad": "Real Sociedad",
-    "Betis": "Real Betis",
-    "Sevilla": "Sevilla FC",
-    "Bayern München": "Bayern Munich",
-    "Dortmund": "Borussia Dortmund",
-    "Leverkusen": "Bayer Leverkusen",
-    "Leipzig": "RB Leipzig",
-    "Paris SG": "Paris Saint Germain",
-    "Marseille": "Olympique Marseille",
-    "Lyon": "Olympique Lyonnais",
-    "Ajax": "AFC Ajax",
-    "PSV": "PSV Eindhoven"
-}
-
 # --- 1. HÄMTA EXTERNA ODDS ---
 @st.cache_data(ttl=CACHE_TIME)
 def fetch_external_odds(api_key):
@@ -390,5 +271,6 @@ with st.expander("🕵️ Hittar du inte laget? Klicka här för att söka i API
                 team_list = sorted(list(all_odds.keys()))
                 st.write(f"Hittade **{len(team_list)}** lag totalt.")
                 st.text_area("Kopiera namn:", value="\n".join(team_list), height=400)
+
 
 
