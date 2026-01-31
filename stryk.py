@@ -25,8 +25,8 @@ def fetch_external_odds(api_key):
     
     leagues = [
         # England
-        'soccer_epl', 'soccer_efl_championship', 'soccer_england_league1', 'soccer_england_league2',
-        'soccer_fa_cup', 'soccer_efl_cup'
+        'soccer_fa_cup', 'soccer_epl', 'soccer_efl_championship', 'soccer_england_league1', 'soccer_england_league2',
+         'soccer_efl_cup'
     ]
     
     prog_bar = st.progress(0, text="Hämtar odds...")
@@ -272,6 +272,7 @@ with st.expander("🕵️ Hittar du inte laget? Klicka här för att söka i API
                 team_list = sorted(list(all_odds.keys()))
                 st.write(f"Hittade **{len(team_list)}** lag totalt.")
                 st.text_area("Kopiera namn:", value="\n".join(team_list), height=400)
+
 
 
 
