@@ -3,7 +3,7 @@ import pandas as pd
 import re
 
 # --- KONFIGURATION ---
-ST_PAGE_TITLE = "🐻 Stryktipset: Pro Edition (Tydliga Färger)"
+ST_PAGE_TITLE = "🐻 Stryktipset: Pro Edition (Med Länk)"
 SVENSKA_SPEL_URL = "https://www.svenskaspel.se/stryktipset"
 
 # --- HJÄLPFUNKTIONER ---
@@ -168,8 +168,13 @@ def suggest_sign_and_status(row):
 st.set_page_config(page_title="Stryktipset Pro", layout="wide")
 st.title(ST_PAGE_TITLE)
 
+# --- HÄR ÄR LÄNKEN TILLBAKA ---
 with st.expander("ℹ️ Instruktioner", expanded=True):
-    st.info("Klistra in hela sidan (Ctrl+A -> Ctrl+C).")
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        st.info("1. Markera allt (Ctrl+A) på Svenska Spel.\n2. Kopiera (Ctrl+C).\n3. Klistra in nedan.")
+    with col2:
+        st.link_button("Öppna Stryktipset ↗️", SVENSKA_SPEL_URL, use_container_width=True)
 
 with st.form("input_form"):
     text_input = st.text_area("Klistra in här:", height=300)
@@ -211,14 +216,13 @@ if submitted and text_input:
                 hide_index=True, use_container_width=True, height=h
             )
 
-        # FLIK 2: Värdetabell (Färgkodad - NU TYDLIGARE)
+        # FLIK 2: Värdetabell (TYDLIGA FÄRGER)
         with tab2:
             st.write("Visar **Värde** (Sannolikhet minus Streckprocent).")
             st.write("🟢 **Stark Grön** (> 7) = Understreckad (Bra spelvärde).")
             st.write("🔴 **Stark Röd** (< -10) = Överstreckad (Dåligt spelvärde).")
             
             val_cols = ['Match', 'Match_Rubrik', 'Val_1', 'Val_X', 'Val_2']
-            # Här har jag bytt till starkare hex-koder för färgerna
             st.dataframe(
                 df[val_cols].style.map(
                     lambda x: 'background-color: #85e085' if x > 7 else ('background-color: #ff9999' if x < -10 else ''), 
