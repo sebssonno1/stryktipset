@@ -3,7 +3,7 @@ import pandas as pd
 import re
 
 # --- KONFIGURATION ---
-ST_PAGE_TITLE = "🐻 Stryktipset: Pro Edition (Med Länk)"
+ST_PAGE_TITLE = "🐻 Stryktipset"
 SVENSKA_SPEL_URL = "https://www.svenskaspel.se/stryktipset"
 
 # --- HJÄLPFUNKTIONER ---
@@ -165,7 +165,7 @@ def suggest_sign_and_status(row):
     return "".join(sorted(tecken)), status
 
 # --- APP LAYOUT ---
-st.set_page_config(page_title="Stryktipset Pro", layout="wide")
+st.set_page_config(page_title="Stryktipset", layout="wide")
 st.title(ST_PAGE_TITLE)
 
 # --- HÄR ÄR LÄNKEN TILLBAKA ---
@@ -246,3 +246,4 @@ if submitted and text_input:
         # FLIK 4: Rådata
         with tab4:
             st.dataframe(df, use_container_width=True)
+
