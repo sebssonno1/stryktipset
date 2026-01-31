@@ -3,7 +3,7 @@ import pandas as pd
 import re
 
 # --- KONFIGURATION ---
-ST_PAGE_TITLE = "🐻 Stryktipset: Budget Optimizer (Corrected)"
+ST_PAGE_TITLE = "🐻 Stryktipset"
 SVENSKA_SPEL_URL = "https://www.svenskaspel.se/stryktipset"
 
 # --- HJÄLPFUNKTIONER ---
@@ -190,7 +190,7 @@ def suggest_initial_tips(row):
     return "".join(sorted(tecken)), status
 
 # --- APP LAYOUT ---
-st.set_page_config(page_title="Stryktipset Budget", layout="wide")
+st.set_page_config(page_title="Stryktipset", layout="wide")
 st.title(ST_PAGE_TITLE)
 
 with st.expander("ℹ️ Instruktioner", expanded=True):
@@ -203,7 +203,7 @@ with st.expander("ℹ️ Instruktioner", expanded=True):
 with st.form("input_form"):
     # HÄR ÄR DEN RÄTTADE RADEN:
     user_budget = st.number_input(
-        "💰 Max budget för systemet (kr):", 
+        "💰 Max pris:", 
         min_value=1, 
         value=600, 
         step=10, 
@@ -280,3 +280,4 @@ if submitted and text_input:
 
         with tab4:
             st.dataframe(df, use_container_width=True)
+
