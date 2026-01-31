@@ -205,7 +205,7 @@ with st.expander("ℹ️ Instruktioner", expanded=True):
 
 with st.form("input_form"):
     user_budget = st.number_input(
-        "💰 Max pris (kr):", 
+        "💰 Maxpris (kr):", 
         min_value=1, 
         value=600, 
         step=10, 
@@ -282,6 +282,7 @@ if submitted and text_input:
 
         with tab4:
             st.dataframe(df, use_container_width=True, height=h)
+
 
 
 
