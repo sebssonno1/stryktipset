@@ -14,7 +14,7 @@ SVENSKA_SPEL_URL = "https://www.svenskaspel.se/stryktipset"
 # --- PLATSHÅLLARTEXT ---
 PLACEHOLDER_TEXT = """Klistra in hela sidan (Ctrl+A) från den vanliga kupongvyn."""
 
-# --- 1. HÄMTA EXTERNA ODDS (UPPDATERAD) ---
+# --- 1. HÄMTA EXTERNA ODDS (OPTIMERAL FÖR DENNA KUPONG) ---
 @st.cache_data(ttl=CACHE_TIME)
 def fetch_external_odds(api_key):
     if not api_key or "DIN_NYCKEL" in api_key:
@@ -22,50 +22,52 @@ def fetch_external_odds(api_key):
 
     all_odds = {}
     
-    # 1. Prioriterad ordning! (Engelska ligor först för att säkra Stryktipset)
-    # Vi lägger till FA Cup högst upp eftersom det är cup-tider.
+    # HÄR ÄR NYCKELN: Vi måste söka i dessa specifika ligor för att hitta Wrexham, Bolton, etc.
     leagues = [
-        'soccer_fa_cup',            # FA-cupen (Viktig nu!)
-        'soccer_efl_championship',  # The Championship
-        'soccer_england_league1',   # League 1
-        'soccer_england_league2',   # League 2
-        'soccer_epl',               # Premier League
-        'soccer_sweden_allsvenskan',
-        'soccer_italy_serie_a', 
-        'soccer_spain_la_liga', 
-        'soccer_germany_bundesliga', 
-        'soccer_france_ligue_one'
+        'soccer_fa_cup',            # Prio 1: FA-cupen (Ipswich, Preston m.fl)
+        'soccer_england_league1',   # Prio 2: League 1 (Birmingham, Bolton, Wrexham)
+        'soccer_england_league2',   # Prio 3: League 2 (Grimsby, Wimbledon)
+        'soccer_efl_championship',  # Prio 4: Championship (Leeds, Stoke)
+        'soccer_epl',               # Prio 5: Premier League
     ]
     
-    prog_bar = st.progress(0, text="Hämtar odds...")
+    prog_bar = st.progress(0, text="Startar sökning...")
     total_leagues = len(leagues)
     
+    # Vi använder en "Session" för snabbare anrop
+    session = requests.Session()
+
     for i, league in enumerate(leagues):
-        prog_bar.progress((i + 1) / total_leagues, text=f"Kollar liga: {league}...")
+        prog_bar.progress((i + 1) / total_leagues, text=f"Letar i {league}...")
         
-        # ÄNDRING HÄR: Vi lägger till "uk" i regions för att hitta fler engelska odds!
-        url = f'https://api.the-odds-api.com/v4/sports/{league}/odds/?apiKey={api_key}&regions=eu,uk&markets=h2h'
+        # Vi ber om UK och EU odds. "h2h" är vanliga 1X2-odds.
+        url = f'https://api.the-odds-api.com/v4/sports/{league}/odds/?apiKey={api_key}&regions=uk,eu&markets=h2h'
         
         try:
-            response = requests.get(url)
+            response = session.get(url)
             
+            # Om vi slår i taket (429) avbryter vi snyggt
             if response.status_code == 429:
-                st.warning(f"⚠️ API-kvoten tog slut vid {league}. Vissa matcher kan saknas.")
+                st.warning(f"⚠️ API-kvoten slut vid {league}. Sparar det vi hittat...")
                 break 
             
             if response.status_code != 200: 
                 continue
             
             data = response.json()
+            
+            # Loopa igenom matcherna i ligan
             for match in data:
                 home_team = match['home_team']
-                # Enkla städningar av lagnamn
+                
+                # Enkel namn-städning för att öka chansen till matchning
+                # Tar bort " FC", " AFC" så "Bolton Wanderers FC" blir "Bolton Wanderers"
                 simple_name = home_team.replace(" FC", "").replace(" AFC", "").strip()
                 
                 bookmakers = match.get('bookmakers', [])
                 if not bookmakers: continue
                 
-                # Vi tar första bästa odds vi hittar
+                # Hämta odds från första tillgängliga bolag
                 market = bookmakers[0]['markets'][0]
                 outcomes = market['outcomes']
                 
@@ -75,16 +77,16 @@ def fetch_external_odds(api_key):
                     elif outcome['name'] == match['away_team']: o2 = outcome['price']
                     else: ox = outcome['price']
                 
-                # Spara odds om vi hittade dem
+                # Spara om vi har odds
                 if o1 > 0:
                     odds_data = {'1': o1, 'X': ox, '2': o2}
                     all_odds[home_team] = odds_data
+                    # Spara även den förenklade versionen av namnet
                     if simple_name != home_team:
                         all_odds[simple_name] = odds_data
                         
         except Exception as e:
-            print(f"Fel vid hämtning av {league}: {e}")
-            pass
+            print(f"Fel vid {league}: {e}")
             
     prog_bar.empty()
     return all_odds
@@ -300,4 +302,5 @@ if submitted and text_input:
         with tab4:
             st.write("Visar vilket lag API:et matchade med:")
             st.dataframe(df[['Match', 'Hemmalag', 'Matchat_Lag', 'Källa']], hide_index=True, use_container_width=True, height=table_height)
+
 
