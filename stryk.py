@@ -3,7 +3,7 @@ import pandas as pd
 import re
 
 # --- KONFIGURATION ---
-ST_PAGE_TITLE = "🐻 Stryktipset: Pro Edition"
+ST_PAGE_TITLE = "🐻 Stryktipset: Pro Edition (Tydliga Färger)"
 SVENSKA_SPEL_URL = "https://www.svenskaspel.se/stryktipset"
 
 # --- HJÄLPFUNKTIONER ---
@@ -11,7 +11,7 @@ def to_float(val_str):
     """Gör om '1,78' till 1.78. Returnerar None om det inte är ett decimaltal."""
     try:
         clean = val_str.replace(',', '.').replace('%', '').strip()
-        # Vi kräver att det finns en punkt/komma för att det ska räknas som odds (för att inte råka ta procenten)
+        # Vi kräver att det finns en punkt/komma för att det ska räknas som odds
         if '.' in clean:
             return float(clean)
         return float(clean)
@@ -34,13 +34,11 @@ def parse_svenskaspel_paste(text_content):
     # 1. Hitta matchstarter (1-13)
     for i, line in enumerate(lines):
         if line == str(current_target):
-            # Kontrollera att det är en matchstart och inte en rubrik (t.ex. "1" i "1 X 2")
             is_real_match = True
             
-            # Titta på nästa rad
+            # Titta på nästa rad för att undvika rubriker
             if i + 1 < len(lines):
                 next_line = lines[i+1]
-                # Om nästa rad är "X", "Tipsinfo" eller liknande är det en rubrik
                 if next_line in ['X', '-', '–', '1X2'] or "Tipsinfo" in next_line:
                     is_real_match = False
             
@@ -88,14 +86,12 @@ def parse_svenskaspel_paste(text_content):
         streck_values = []
         capture_streck = False
         for line in block:
-            # Om vi ser %-tecken är det oftast rätt
             if '%' in line:
                 try:
                     val = int(line.replace('%', '').strip())
                     streck_values.append(val)
                 except: pass
             
-            # Alternativ metod: Leta efter heltal under "Svenska folket"
             if "Svenska folket" in line: capture_streck = True
             if "Odds" in line: capture_streck = False
             
@@ -104,7 +100,6 @@ def parse_svenskaspel_paste(text_content):
                 if val <= 100: streck_values.append(val)
 
         if len(streck_values) >= 3:
-            # Ta de tre första unika procenten som hittades i blocket
             current_match['Streck_1'] = streck_values[0]
             current_match['Streck_X'] = streck_values[1]
             current_match['Streck_2'] = streck_values[2]
@@ -120,11 +115,9 @@ def parse_svenskaspel_paste(text_content):
                 continue
             
             if capture_odds:
-                # Regex: Måste vara siffror, punkt/komma, siffror (t.ex 1,78)
                 if re.match(r'^\d+[.,]\d{2}$', line):
                     val = to_float(line)
                     if val: odds_values.append(val)
-                
                 if len(odds_values) >= 3: break
         
         if len(odds_values) >= 3:
@@ -152,7 +145,6 @@ def suggest_sign_and_status(row):
     val1, valx, val2 = row['Val_1'], row['Val_X'], row['Val_2']
     options = [('1', val1, row['Prob_1']), ('X', valx, row['Prob_X']), ('2', val2, row['Prob_2'])]
     
-    # Sortera på VÄRDE
     options.sort(key=lambda x: x[1], reverse=True) 
     
     best_sign = options[0]
@@ -162,7 +154,6 @@ def suggest_sign_and_status(row):
     if best_sign[1] > 7: status = f"💎 Fynd {best_sign[0]}"
     elif best_sign[1] < -10: status = "⚠️ Dåligt värde"
 
-    # Gardering
     probs_sorted = sorted(options, key=lambda x: x[2], reverse=True)
     favorite = probs_sorted[0][0]
 
@@ -220,16 +211,17 @@ if submitted and text_input:
                 hide_index=True, use_container_width=True, height=h
             )
 
-        # FLIK 2: Värdetabell (Färgkodad)
+        # FLIK 2: Värdetabell (Färgkodad - NU TYDLIGARE)
         with tab2:
             st.write("Visar **Värde** (Sannolikhet minus Streckprocent).")
-            st.write("🟢 **Grön** (> 7) = Understreckad (Bra spelvärde).")
-            st.write("🔴 **Röd** (< -10) = Överstreckad (Dåligt spelvärde).")
+            st.write("🟢 **Stark Grön** (> 7) = Understreckad (Bra spelvärde).")
+            st.write("🔴 **Stark Röd** (< -10) = Överstreckad (Dåligt spelvärde).")
             
             val_cols = ['Match', 'Match_Rubrik', 'Val_1', 'Val_X', 'Val_2']
+            # Här har jag bytt till starkare hex-koder för färgerna
             st.dataframe(
                 df[val_cols].style.map(
-                    lambda x: 'background-color: #d4edda' if x > 7 else ('background-color: #f8d7da' if x < -10 else ''), 
+                    lambda x: 'background-color: #85e085' if x > 7 else ('background-color: #ff9999' if x < -10 else ''), 
                     subset=['Val_1', 'Val_X', 'Val_2']
                 ).format("{:.1f}", subset=['Val_1', 'Val_X', 'Val_2']),
                 hide_index=True, use_container_width=True, height=h
@@ -239,7 +231,6 @@ if submitted and text_input:
         with tab3:
             st.write("Jämför vad **Oddsen** säger (sannolikhet %) mot vad **Folket** streckat (%).")
             
-            # Skapa en snyggare visning för jämförelse
             comp_df = df[['Match', 'Hemmalag', 'Prob_1', 'Streck_1', 'Prob_X', 'Streck_X', 'Prob_2', 'Streck_2']].copy()
             comp_df.columns = ['Match', 'Lag', 'Odds 1 (%)', 'Folk 1 (%)', 'Odds X (%)', 'Folk X (%)', 'Odds 2 (%)', 'Folk 2 (%)']
             
