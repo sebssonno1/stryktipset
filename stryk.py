@@ -14,7 +14,7 @@ SVENSKA_SPEL_URL = "https://www.svenskaspel.se/stryktipset"
 # --- PLATSHÅLLARTEXT ---
 PLACEHOLDER_TEXT = """Klistra in hela sidan (Ctrl+A) från den vanliga kupongvyn."""
 
-# --- 1. HÄMTA ODDS (MED UK-AUTO-SÖK) ---
+# --- 1. HÄMTA EXTERNA ODDS (UPPDATERAD) ---
 @st.cache_data(ttl=CACHE_TIME)
 def fetch_external_odds(api_key):
     if not api_key or "DIN_NYCKEL" in api_key:
@@ -22,71 +22,69 @@ def fetch_external_odds(api_key):
 
     all_odds = {}
     
-    # STEG 1: Hämta alla aktiva ligor för att hitta de Brittiska
-    try:
-        sports_url = f'https://api.the-odds-api.com/v4/sports/?apiKey={api_key}'
-        sports_response = requests.get(sports_url)
-        sports_data = sports_response.json()
-        
-        # Filtrera ut ligor som är fotboll ("Soccer") OCH (England eller Skottland)
-        target_leagues = []
-        for sport in sports_data:
-            if sport.get('group') == 'Soccer':
-                title = sport.get('title', '')
-                # Här bestämmer vi att vi vill ha UK-ligor
-                if 'England' in title or 'Scotland' in title:
-                    target_leagues.append(sport['key'])
-        
-        if not target_leagues:
-            st.warning("Hittade inga aktiva UK-ligor just nu.")
-            return {}
-
-    except Exception as e:
-        st.error(f"Kunde inte hämta sportlistan: {e}")
-        return {}
+    # 1. Prioriterad ordning! (Engelska ligor först för att säkra Stryktipset)
+    # Vi lägger till FA Cup högst upp eftersom det är cup-tider.
+    leagues = [
+        'soccer_fa_cup',            # FA-cupen (Viktig nu!)
+        'soccer_efl_championship',  # The Championship
+        'soccer_england_league1',   # League 1
+        'soccer_england_league2',   # League 2
+        'soccer_epl',               # Premier League
+        'soccer_sweden_allsvenskan',
+        'soccer_italy_serie_a', 
+        'soccer_spain_la_liga', 
+        'soccer_germany_bundesliga', 
+        'soccer_france_ligue_one'
+    ]
     
-    # STEG 2: Hämta odds för varje funnen liga
-    prog_bar = st.progress(0, text="Förbereder...")
-    total_leagues = len(target_leagues)
+    prog_bar = st.progress(0, text="Hämtar odds...")
+    total_leagues = len(leagues)
     
-    for i, league in enumerate(target_leagues):
+    for i, league in enumerate(leagues):
         prog_bar.progress((i + 1) / total_leagues, text=f"Kollar liga: {league}...")
         
-        # regions=eu ger oftast bäst odds, men du kan ändra till regions=uk om du vill ha brittiska bookies
-        url = f'https://api.the-odds-api.com/v4/sports/{league}/odds/?apiKey={api_key}&regions=eu&markets=h2h'
+        # ÄNDRING HÄR: Vi lägger till "uk" i regions för att hitta fler engelska odds!
+        url = f'https://api.the-odds-api.com/v4/sports/{league}/odds/?apiKey={api_key}&regions=eu,uk&markets=h2h'
         
         try:
             response = requests.get(url)
-            if response.status_code == 429: # Slut på krediter
-                st.warning("⚠️ API-gränsen nådd. Vissa odds kanske saknas.")
+            
+            if response.status_code == 429:
+                st.warning(f"⚠️ API-kvoten tog slut vid {league}. Vissa matcher kan saknas.")
                 break 
-            if response.status_code != 200: continue
+            
+            if response.status_code != 200: 
+                continue
             
             data = response.json()
             for match in data:
                 home_team = match['home_team']
-                # Skapa en förenklad version av namnet för bättre matchning
-                simple_name = home_team.replace(" FC", "").replace(" AFC", "").replace(" BC", "").replace(" SSC", "").strip()
+                # Enkla städningar av lagnamn
+                simple_name = home_team.replace(" FC", "").replace(" AFC", "").strip()
                 
                 bookmakers = match.get('bookmakers', [])
                 if not bookmakers: continue
                 
-                # Vi tar genomsnittet av de första bookmakersarna för stabilare odds, eller bara den första
-                outcomes = bookmakers[0]['markets'][0]['outcomes']
+                # Vi tar första bästa odds vi hittar
+                market = bookmakers[0]['markets'][0]
+                outcomes = market['outcomes']
+                
                 o1, ox, o2 = 0, 0, 0
                 for outcome in outcomes:
                     if outcome['name'] == home_team: o1 = outcome['price']
                     elif outcome['name'] == match['away_team']: o2 = outcome['price']
                     else: ox = outcome['price']
                 
-                odds_data = {'1': o1, 'X': ox, '2': o2}
-                
-                # Spara både originalnamn och enkelt namn
-                all_odds[home_team] = odds_data
-                if simple_name != home_team:
-                    all_odds[simple_name] = odds_data
-
-        except Exception: pass
+                # Spara odds om vi hittade dem
+                if o1 > 0:
+                    odds_data = {'1': o1, 'X': ox, '2': o2}
+                    all_odds[home_team] = odds_data
+                    if simple_name != home_team:
+                        all_odds[simple_name] = odds_data
+                        
+        except Exception as e:
+            print(f"Fel vid hämtning av {league}: {e}")
+            pass
             
     prog_bar.empty()
     return all_odds
@@ -302,3 +300,4 @@ if submitted and text_input:
         with tab4:
             st.write("Visar vilket lag API:et matchade med:")
             st.dataframe(df[['Match', 'Hemmalag', 'Matchat_Lag', 'Källa']], hide_index=True, use_container_width=True, height=table_height)
+
