@@ -3,7 +3,7 @@ import pandas as pd
 import re
 
 # --- KONFIGURATION ---
-ST_PAGE_TITLE = "🐻 Stryktipset"
+ST_PAGE_TITLE = "🐻 Stryktipset: Budget Optimizer (Combined Info)"
 SVENSKA_SPEL_URL = "https://www.svenskaspel.se/stryktipset"
 
 # --- HJÄLPFUNKTIONER ---
@@ -64,7 +64,10 @@ def optimize_system(df, max_budget):
         # Verkställ ändringen: Ändra gardering till spik
         if index_to_shave != -1:
             df.at[index_to_shave, 'Tips'] = best_sign_to_keep
-            df.at[index_to_shave, 'Analys'] = "🔒 Spikad (Budget)" # Markera att vi ändrat
+            
+            # --- HÄR ÄR FIXEN: Vi lägger till texten istället för att skriva över ---
+            current_analys = df.at[index_to_shave, 'Analys']
+            df.at[index_to_shave, 'Analys'] = f"{current_analys} ➡️ 🔒 (Budget)"
         
         current_cost = calculate_cost(df)
         
@@ -190,7 +193,7 @@ def suggest_initial_tips(row):
     return "".join(sorted(tecken)), status
 
 # --- APP LAYOUT ---
-st.set_page_config(page_title="Stryktipset", layout="wide")
+st.set_page_config(page_title="Stryktipset Budget", layout="wide")
 st.title(ST_PAGE_TITLE)
 
 with st.expander("ℹ️ Instruktioner", expanded=True):
@@ -201,13 +204,12 @@ with st.expander("ℹ️ Instruktioner", expanded=True):
         st.link_button("Öppna Stryktipset ↗️", SVENSKA_SPEL_URL, use_container_width=True)
 
 with st.form("input_form"):
-    # HÄR ÄR DEN RÄTTADE RADEN:
     user_budget = st.number_input(
-        "💰 Max pris:", 
+        "💰 Max budget för systemet (kr):", 
         min_value=1, 
         value=600, 
         step=10, 
-        help="Scriptet tar bort garderingar på de 'säkraste' matcherna tills priset är under din budget."
+        help="Scriptet tar bort garderingar på de säkraste matcherna tills priset är under din budget."
     )
     
     text_input = st.text_area("Klistra in kupongen här:", height=300)
@@ -255,7 +257,7 @@ if submitted and text_input:
         tab1, tab2, tab3, tab4 = st.tabs(["💡 Färdig Kupong", "📊 Värdetabell", "⚖️ Odds vs Folket", "🔍 Rådata"])
         
         with tab1:
-            st.write(f"Tipsen nedan är optimerade för **{user_budget} kr**. '🔒' betyder att garderingen togs bort för att spara pengar.")
+            st.write(f"Tipsen nedan är optimerade för **{user_budget} kr**.")
             st.dataframe(
                 df_optimized[['Match', 'Match_Rubrik', 'Tips', 'Analys']], 
                 hide_index=True, use_container_width=True, height=h
@@ -280,4 +282,3 @@ if submitted and text_input:
 
         with tab4:
             st.dataframe(df, use_container_width=True)
-
