@@ -199,7 +199,7 @@ st.title(ST_PAGE_TITLE)
 with st.expander("ℹ️ Instruktioner", expanded=True):
     col1, col2 = st.columns([3, 1])
     with col1:
-        st.info(f"1. Markera allt (Ctrl+A) på Svenska Spel.\n2. Kopiera (Ctrl+C).\n3. Klistra in nedan.\n4. Välj din budget och kör.")
+        st.info(f"1. Markera allt (Ctrl+A) på Svenska Spel.\n2. Kopiera (Ctrl+C).\n3. Klistra in nedan.\n4. Välj ditt maxpris och kör.")
     with col2:
         st.link_button("Öppna Stryktipset ↗️", SVENSKA_SPEL_URL, use_container_width=True)
 
@@ -282,5 +282,6 @@ if submitted and text_input:
 
         with tab4:
             st.dataframe(df, use_container_width=True)
+
 
 
