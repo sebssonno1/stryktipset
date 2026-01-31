@@ -3,7 +3,7 @@ import pandas as pd
 import re
 
 # --- KONFIGURATION ---
-ST_PAGE_TITLE = "🐻 Stryktipset: Robust Edition v2"
+ST_PAGE_TITLE = "🐻 Stryktipset: Bulletproof Edition"
 SVENSKA_SPEL_URL = "https://www.svenskaspel.se/stryktipset"
 
 # --- PLATSHÅLLARTEXT ---
@@ -11,94 +11,135 @@ PLACEHOLDER_TEXT = """Klistra in hela sidan (Ctrl+A) från den vanliga kupongvyn
 Se till att både streckprocent och odds kommer med."""
 
 # --- 1. HJÄLPFUNKTIONER ---
+def to_float(val_str):
+    """Försöker konvertera en sträng till float, hanterar både komma och punkt."""
+    try:
+        # Ersätt komma med punkt och ta bort ev % eller mellanslag
+        clean = val_str.replace(',', '.').replace('%', '').strip()
+        return float(clean)
+    except ValueError:
+        return None
+
 def clean_team_name(name):
     if not isinstance(name, str): return "-"
-    # Tar bort siffror i början, punkt, och 1X2-tecken
+    # Tar bort inledande siffror (t.ex. "1. ") och 1X2-tecken
     name = re.sub(r'^\d+[\.\s]*', '', name) 
     name = name.replace("1X2", "").replace("1", "").replace("X", "").replace("2", "")
     return name.strip()
 
-def find_three_values(lines, start_index, search_type="percent"):
-    """Letar efter 3 värden (procent eller odds) i de kommande raderna."""
-    found_values = []
-    # Sök i upp till 8 rader framåt
-    for offset in range(1, 9):
-        if start_index + offset >= len(lines):
-            break
-        
-        txt = lines[start_index + offset].strip()
-        if not txt: continue 
-
-        if search_type == "percent":
-            matches = re.findall(r'(\d+)%', txt)
-            if not matches and txt.isdigit() and int(txt) < 100:
-                matches = [txt]
-            for m in matches: found_values.append(int(m))
-
-        elif search_type == "odds":
-            clean_txt = txt.replace(',', '.')
-            matches = re.findall(r'(\d+\.\d{2})', clean_txt)
-            for m in matches: found_values.append(float(m))
-        
-        if len(found_values) >= 3:
-            return found_values[:3]
-            
-    return None
-
-# --- 2. PARSER ---
+# --- 2. PARSER (Den nya, smartare logiken) ---
 def parse_svenskaspel_paste(text_content):
     matches = []
+    # Rensa bort tomma rader direkt
     lines = [line.strip() for line in text_content.split('\n') if line.strip()]
+    
     current_match = {}
     
+    # Vi itererar genom alla rader
     i = 0
     while i < len(lines):
         line = lines[i]
         
-        # --- HITTA MATCHNUMMER ---
+        # --- 1. HITTA MATCHNUMMER ---
+        # Om raden är en siffra 1-13
         if line.isdigit() and 1 <= int(line) <= 13:
+            # Spara föregående match om den är klar
             if current_match and 'Hemmalag' in current_match:
                 matches.append(current_match)
+            
             current_match = {'Match': int(line)}
             
-            # --- HITTA LAGNAMN ---
-            try:
-                # Sök i buffer
-                buffer = lines[i+1:i+6]
-                if '-' in buffer:
-                    idx = buffer.index('-')
-                    current_match['Hemmalag'] = clean_team_name(buffer[idx-1])
-                    current_match['Bortalag'] = clean_team_name(buffer[idx+1])
-                else:
-                    for txt in buffer:
-                        if ' - ' in txt:
-                            parts = txt.split(' - ')
-                            current_match['Hemmalag'] = clean_team_name(parts[0])
-                            current_match['Bortalag'] = clean_team_name(parts[1])
-                            break
-            except Exception: pass
+            # --- 2. HITTA LAGNAMN (Leta i de närmaste 6 raderna) ---
+            found_teams = False
+            for offset in range(1, 7):
+                if i + offset >= len(lines): break
+                
+                txt = lines[i+offset]
+                # Kolla efter olika typer av bindestreck eller " - "
+                if any(sep in txt for sep in ['-', '–', '—', ' vs ']):
+                    # Om hela matchen står på en rad: "Lag A - Lag B"
+                    separators = [' vs ', ' - ', '-', '–', '—']
+                    for sep in separators:
+                        if sep in txt:
+                            parts = txt.split(sep, 1)
+                            if len(parts) == 2:
+                                current_match['Hemmalag'] = clean_team_name(parts[0])
+                                current_match['Bortalag'] = clean_team_name(parts[1])
+                                found_teams = True
+                                break
+                    if found_teams: break
+                
+                # Om bindestrecket ligger på en EGEN rad (vanligast vid Ctrl+A)
+                # Exempel:
+                # Ipswich
+                # -
+                # Preston
+                elif txt in ['-', '–', '—'] and (i+offset+1 < len(lines)):
+                    current_match['Hemmalag'] = clean_team_name(lines[i+offset-1])
+                    current_match['Bortalag'] = clean_team_name(lines[i+offset+1])
+                    found_teams = True
+                    break
             
-        # --- HITTA STRECK ---
-        if "Svenska folket" in line or "Svenska Folket" in line:
-            pcts = find_three_values(lines, i, "percent")
-            if pcts:
-                current_match['Streck_1'] = pcts[0]
-                current_match['Streck_X'] = pcts[1]
-                current_match['Streck_2'] = pcts[2]
+            # Nödlösning: Om vi inte hittade bindestreck, gissa att rad 1 och 3 efter numret är lagen
+            if not found_teams and i + 3 < len(lines):
+                # Detta fångar fallet om bindestrecket "försvunnit" eller är ett konstigt tecken
+                # Förutsätter struktur: Matchnr -> Hemmalag -> (skräp) -> Bortalag
+                pass 
 
-        # --- HITTA ODDS ---
-        if "Odds" in line and len(line) < 20:
-            odds = find_three_values(lines, i, "odds")
-            if odds:
-                current_match['Odds_1'] = odds[0]
-                current_match['Odds_X'] = odds[1]
-                current_match['Odds_2'] = odds[2]
+        # --- 3. HITTA DATA (STRECK & ODDS) ---
+        # Vi använder en "scanner" som tittar framåt när vi hittar nyckelord
+        
+        # Hitta STRECK (Svenska folket)
+        if "Svenska folket" in line or "Svenska Folket" in line:
+            values = []
+            # Titta på de kommande 8 raderna efter siffror
+            for offset in range(1, 9):
+                if i + offset >= len(lines): break
+                txt = lines[i+offset]
+                
+                # Hitta heltal (t.ex. 58%)
+                nums = re.findall(r'(\d+)%', txt)
+                if not nums and txt.isdigit(): nums = [txt] # Fånga "58" utan %
+                
+                for num in nums:
+                    val = to_float(num)
+                    if val is not None: values.append(val)
+            
+            if len(values) >= 3:
+                current_match['Streck_1'] = values[0]
+                current_match['Streck_X'] = values[1]
+                current_match['Streck_2'] = values[2]
+
+        # Hitta ODDS
+        # Vi kollar om raden innehåller "Odds" men inte är en lång mening
+        if "Odds" in line and len(line) < 30:
+            values = []
+            # Titta framåt efter decimaltal
+            for offset in range(1, 9):
+                if i + offset >= len(lines): break
+                txt = lines[i+offset]
+                
+                # Regex som hittar "1,78", "1.78", "3,50" etc.
+                # Tillåter både komma och punkt
+                found = re.findall(r'(\d+[.,]\d+)', txt)
+                
+                for f in found:
+                    val = to_float(f)
+                    if val is not None: values.append(val)
+                
+                if len(values) >= 3:
+                    current_match['Odds_1'] = values[0]
+                    current_match['Odds_X'] = values[1]
+                    current_match['Odds_2'] = values[2]
+                    break
 
         i += 1
     
-    if current_match and 'Match' in current_match:
+    # Lägg till sista matchen
+    if current_match and 'Hemmalag' in current_match:
         matches.append(current_match)
 
+    # Ta bort dubbletter och sortera
     unique = {m['Match']: m for m in matches}.values()
     return sorted(list(unique), key=lambda x: x['Match'])
 
@@ -115,7 +156,8 @@ def suggest_sign_and_status(row):
 
     val1, valx, val2 = row['Val_1'], row['Val_X'], row['Val_2']
     options = [('1', val1, row['Prob_1']), ('X', valx, row['Prob_X']), ('2', val2, row['Prob_2'])]
-    options.sort(key=lambda x: x[1], reverse=True) # Sortera på värde
+    # Sortera på VÄRDE (högst först)
+    options.sort(key=lambda x: x[1], reverse=True) 
     
     best_sign = options[0]
     tecken = [best_sign[0]]
@@ -124,19 +166,22 @@ def suggest_sign_and_status(row):
     if best_sign[1] > 10: status = f"💎 Fynd {best_sign[0]}"
     elif best_sign[1] < -10: status = "⚠️ Dåligt värde"
 
-    # Gardering
+    # Garderings-logik
+    # Hitta favoriten (högst sannolikhet)
     probs_sorted = sorted(options, key=lambda x: x[2], reverse=True)
     favorite = probs_sorted[0][0]
 
+    # Om vårt "bästa värde" inte är favoriten, ta med favoriten (gardera)
     if best_sign[0] != favorite:
         tecken.append(favorite)
     elif best_sign[1] < 5: 
+        # Om värdet är lågt på favoriten, ta med näst bästa
         tecken.append(options[1][0])
 
     return "".join(sorted(tecken)), status
 
 # --- APP START ---
-st.set_page_config(page_title="Stryktipset Robust", layout="wide")
+st.set_page_config(page_title="Stryktipset Bulletproof", layout="wide")
 st.title(ST_PAGE_TITLE)
 
 with st.expander("ℹ️ Instruktioner", expanded=True):
@@ -154,28 +199,23 @@ if submitted and text_input:
     raw_data = parse_svenskaspel_paste(text_input)
     
     if not raw_data:
-        st.error("Hittade inga matcher.")
+        st.error("Kunde inte hitta några matcher. Testa att kopiera igen.")
     else:
         df = pd.DataFrame(raw_data)
         
-        # --- FIX: SÄKERSTÄLL ATT TEXT ÄR TEXT OCH SIFFROR ÄR SIFFROR ---
-        
-        # 1. Se till att textkolumner finns och fyll tomma med "-"
+        # --- SÄKERSTÄLL DATATYPER (För att undvika krascher) ---
+        # 1. Text
         if 'Hemmalag' not in df.columns: df['Hemmalag'] = "-"
         if 'Bortalag' not in df.columns: df['Bortalag'] = "-"
-        
-        # Fyll textkolumnerna med strängar innan vi fyller resten med 0
         df['Hemmalag'] = df['Hemmalag'].fillna("-").astype(str)
         df['Bortalag'] = df['Bortalag'].fillna("-").astype(str)
 
-        # 2. Se till att sifferkolumner finns
-        required_cols = ['Streck_1', 'Streck_X', 'Streck_2', 'Odds_1', 'Odds_X', 'Odds_2']
-        for col in required_cols:
-            if col not in df.columns: df[col] = 0
+        # 2. Siffror (Fyll med 0 om de saknas)
+        num_cols = ['Streck_1', 'Streck_X', 'Streck_2', 'Odds_1', 'Odds_X', 'Odds_2']
+        for col in num_cols:
+            if col not in df.columns: df[col] = 0.0
+            df[col] = df[col].fillna(0.0)
 
-        # 3. Nu kan vi fylla resten (siffror) med 0 säkert
-        df = df.fillna(0)
-        
         # --- BERÄKNINGAR ---
         probs = df.apply(calculate_probabilities, axis=1, result_type='expand')
         df[['Prob_1', 'Prob_X', 'Prob_2']] = probs
@@ -188,13 +228,17 @@ if submitted and text_input:
         df['Tips'] = results[0]
         df['Analys'] = results[1]
         
-        # Nu är det säkert att slå ihop strängarna
         df['Match_Rubrik'] = df['Hemmalag'] + " - " + df['Bortalag']
 
         # --- VISNING ---
-        st.success(f"Lyckades läsa in {len(df)} matcher!")
+        matches_with_odds = df[df['Odds_1'] > 0].shape[0]
+        st.success(f"Lyckades läsa in {len(df)} matcher. Odds hittades för {matches_with_odds} st.")
         
+        if matches_with_odds == 0:
+            st.warning("Hittade inga odds alls. Kontrollera att du klistrade in texten där 'Odds' och siffrorna (t.ex. 1,78) syns.")
+
         h = (len(df) * 35) + 38
+        
         tab1, tab2, tab3 = st.tabs(["💡 Kupong", "📊 Värdetabell", "🔍 Rådata"])
         
         with tab1:
@@ -204,13 +248,16 @@ if submitted and text_input:
             )
 
         with tab2:
-            st.write("Positivt = Bra värde. Negativt = Dåligt värde.")
+            st.write("Grönt = Bra värde (Spelvärt). Rött = Överstreckat.")
             display_cols = ['Match', 'Match_Rubrik', 'Val_1', 'Val_X', 'Val_2', 'Odds_1', 'Odds_X', 'Odds_2']
+            
+            # Formatera färger
             st.dataframe(
                 df[display_cols].style.map(
                     lambda x: 'background-color: #d4edda' if x > 7 else ('background-color: #f8d7da' if x < -10 else ''), 
                     subset=['Val_1', 'Val_X', 'Val_2']
-                ).format("{:.1f}", subset=['Val_1', 'Val_X', 'Val_2']),
+                ).format("{:.2f}", subset=['Odds_1', 'Odds_X', 'Odds_2'])
+                 .format("{:.1f}", subset=['Val_1', 'Val_X', 'Val_2']),
                 hide_index=True, use_container_width=True, height=h
             )
             
