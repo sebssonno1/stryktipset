@@ -1,21 +1,20 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import requests
 import re
 from thefuzz import process 
 
 # --- KONFIGURATION ---
-ST_PAGE_TITLE = "🐻 Stryktipset: Precision Edition"
-API_KEY = "a2d13d188dd18fd41218508d2dd0408f" # <--- DIN NYCKEL HÄR
+ST_PAGE_TITLE = "🐻 Stryktipset: Precision Edition (UK Auto)"
+API_KEY = "a2d13d188dd18fd41218508d2dd0408f" # <--- DIN NYCKEL
 CACHE_TIME = 900 
-MATCH_THRESHOLD = 90  # <--- HÖJD TILL 90: Nu gissar den inte vilt längre!
+MATCH_THRESHOLD = 85  # Lite lägre tröskel kan behövas för vissa lagnamn
 SVENSKA_SPEL_URL = "https://www.svenskaspel.se/stryktipset"
 
 # --- PLATSHÅLLARTEXT ---
 PLACEHOLDER_TEXT = """Klistra in hela sidan (Ctrl+A) från den vanliga kupongvyn."""
 
-# --- 1. HÄMTA EXTERNA ODDS ---
+# --- 1. HÄMTA ODDS (MED UK-AUTO-SÖK) ---
 @st.cache_data(ttl=CACHE_TIME)
 def fetch_external_odds(api_key):
     if not api_key or "DIN_NYCKEL" in api_key:
@@ -23,18 +22,39 @@ def fetch_external_odds(api_key):
 
     all_odds = {}
     
-    leagues = [
-        # England
-        'soccer_fa_cup', 'soccer_epl', 'soccer_efl_championship', 'soccer_england_league1', 'soccer_england_league2',
-         'soccer_efl_cup'
-    ]
+    # STEG 1: Hämta alla aktiva ligor för att hitta de Brittiska
+    try:
+        sports_url = f'https://api.the-odds-api.com/v4/sports/?apiKey={api_key}'
+        sports_response = requests.get(sports_url)
+        sports_data = sports_response.json()
+        
+        # Filtrera ut ligor som är fotboll ("Soccer") OCH (England eller Skottland)
+        target_leagues = []
+        for sport in sports_data:
+            if sport.get('group') == 'Soccer':
+                title = sport.get('title', '')
+                # Här bestämmer vi att vi vill ha UK-ligor
+                if 'England' in title or 'Scotland' in title:
+                    target_leagues.append(sport['key'])
+        
+        if not target_leagues:
+            st.warning("Hittade inga aktiva UK-ligor just nu.")
+            return {}
+
+    except Exception as e:
+        st.error(f"Kunde inte hämta sportlistan: {e}")
+        return {}
     
-    prog_bar = st.progress(0, text="Hämtar odds...")
-    total_leagues = len(leagues)
+    # STEG 2: Hämta odds för varje funnen liga
+    prog_bar = st.progress(0, text="Förbereder...")
+    total_leagues = len(target_leagues)
     
-    for i, league in enumerate(leagues):
+    for i, league in enumerate(target_leagues):
         prog_bar.progress((i + 1) / total_leagues, text=f"Kollar liga: {league}...")
+        
+        # regions=eu ger oftast bäst odds, men du kan ändra till regions=uk om du vill ha brittiska bookies
         url = f'https://api.the-odds-api.com/v4/sports/{league}/odds/?apiKey={api_key}&regions=eu&markets=h2h'
+        
         try:
             response = requests.get(url)
             if response.status_code == 429: # Slut på krediter
@@ -45,11 +65,13 @@ def fetch_external_odds(api_key):
             data = response.json()
             for match in data:
                 home_team = match['home_team']
+                # Skapa en förenklad version av namnet för bättre matchning
                 simple_name = home_team.replace(" FC", "").replace(" AFC", "").replace(" BC", "").replace(" SSC", "").strip()
                 
                 bookmakers = match.get('bookmakers', [])
                 if not bookmakers: continue
                 
+                # Vi tar genomsnittet av de första bookmakersarna för stabilare odds, eller bara den första
                 outcomes = bookmakers[0]['markets'][0]['outcomes']
                 o1, ox, o2 = 0, 0, 0
                 for outcome in outcomes:
@@ -58,9 +80,12 @@ def fetch_external_odds(api_key):
                     else: ox = outcome['price']
                 
                 odds_data = {'1': o1, 'X': ox, '2': o2}
+                
+                # Spara både originalnamn och enkelt namn
                 all_odds[home_team] = odds_data
                 if simple_name != home_team:
                     all_odds[simple_name] = odds_data
+
         except Exception: pass
             
     prog_bar.empty()
@@ -80,24 +105,35 @@ def parse_svenskaspel_paste(text_content):
     i = 0
     while i < len(lines):
         line = lines[i]
+        # Letar efter matchnummer (1-13)
         if line.isdigit() and 1 <= int(line) <= 13:
             try:
+                # Sök framåt efter lagnamn
                 for offset in range(1, 6):
                     if i + offset < len(lines):
                         txt = lines[i+offset]
+                        # Fall 1: "Lag A - Lag B" på samma rad
                         if '-' in txt and len(txt) > 3:
                             parts = txt.split('-')
-                            hemmalag = parts[0]
-                            bortalag = parts[1]
-                            current_match = {'Match': int(line), 'Hemmalag': clean_team_name(hemmalag), 'Bortalag': clean_team_name(bortalag)}
+                            current_match = {
+                                'Match': int(line), 
+                                'Hemmalag': clean_team_name(parts[0]), 
+                                'Bortalag': clean_team_name(parts[1])
+                            }
                             break
+                        # Fall 2: Lag A på en rad, bindestreck, Lag B på nästa
                         elif txt == '-' and (i+offset+1) < len(lines):
                             hemmalag = lines[i+offset-1]
                             bortalag = lines[i+offset+1]
-                            current_match = {'Match': int(line), 'Hemmalag': clean_team_name(hemmalag), 'Bortalag': clean_team_name(bortalag)}
+                            current_match = {
+                                'Match': int(line), 
+                                'Hemmalag': clean_team_name(hemmalag), 
+                                'Bortalag': clean_team_name(bortalag)
+                            }
                             break
             except Exception: pass
         
+        # Letar efter streckfördelning
         if current_match and ("Svenska Folket" in line or "Svenska folket" in line):
             try:
                 temp_pcts = []
@@ -129,25 +165,33 @@ def suggest_sign_and_status(row):
     tecken = []
     status = ""
     prob1 = row.get('Prob_1', 0)
+    
     if prob1 == 0: return "❓", "Saknar Odds"
 
     val1, valx, val2 = row.get('Val_1', 0), row.get('Val_X', 0), row.get('Val_2', 0)
 
+    # Enkel algoritm för tecken
     if row['Prob_1'] > 55 and val1 > -15: tecken.append('1')
     elif row['Prob_2'] > 55 and val2 > -15: tecken.append('2')
     else:
+        # Gå på värde
         values = [('1', val1), ('X', valx), ('2', val2)]
-        values.sort(key=lambda x: x[1], reverse=True)
-        tecken.append(values[0][0])
-        if values[0][1] > 7: status = f"💎 Fynd {values[0][0]}"
-        elif values[0][1] < -10: status = "⚠️ Överstreckad"
+        values.sort(key=lambda x: x[1], reverse=True) # Sortera efter högst värde
+        
+        tecken.append(values[0][0]) # Ta det med bäst värde
+        
+        if values[0][1] > 10: status = f"💎 Fynd {values[0][0]}"
+        elif values[0][1] < -10: status = "⚠️ Varning"
         else: status = "Neutral"
-        if len(tecken) < 2: tecken.append(values[1][0])
+        
+        # Gardera om favoriten är svag
+        if len(tecken) < 2: 
+            tecken.append(values[1][0])
         
     return "".join(sorted(tecken)), status
 
 # --- APP LAYOUT ---
-st.set_page_config(page_title="Stryktipset & Europatipset", layout="wide")
+st.set_page_config(page_title="Stryktipset UK Edition", layout="wide")
 st.title(ST_PAGE_TITLE)
 
 with st.expander("ℹ️ Instruktioner", expanded=True):
@@ -155,6 +199,7 @@ with st.expander("ℹ️ Instruktioner", expanded=True):
     with col1:
         st.write("1. Markera allt (Ctrl+A) på Svenska Spel, kopiera (Ctrl+C).")
         st.write("2. Klistra in nedan och kör.")
+        st.write("3. **Nyhet:** Skriptet söker nu automatiskt efter alla ligor i England & Skottland.")
     with col2:
         st.link_button("Öppna Stryktipset ↗️", SVENSKA_SPEL_URL, use_container_width=True)
 
@@ -166,10 +211,10 @@ with st.form("input_form"):
 if submitted and text_input:
     matches_data = parse_svenskaspel_paste(text_input)
     
-    if not matches_data: st.error("Hittade inga matcher.")
+    if not matches_data: st.error("Hittade inga matcher. Kontrollera att du kopierat hela sidan.")
     
     if matches_data:
-        with st.spinner('Hämtar odds (detta kan ta 15-20 sekunder)...'):
+        with st.spinner('Scannar av England & Skottland efter matcher...'):
             external_odds = fetch_external_odds(API_KEY)
         
         odds_teams = list(external_odds.keys()) if external_odds else []
@@ -182,13 +227,12 @@ if submitted and text_input:
             m['Matchat_Lag'] = "-" 
             
             if external_odds:
-                # FIX: Ändrade search_name till original_name
+                # Fuzzy matchning (Fixat variabel-felet här!)
                 result = process.extractOne(original_name, odds_teams)
                 
                 if result:
                     match_name, score = result[0], result[1]
                     
-                    # Om score är under 90, godkänn INTE matchningen!
                     if score >= MATCH_THRESHOLD: 
                         odds = external_odds[match_name]
                         m['API_Odds_1'] = odds['1']
@@ -233,48 +277,28 @@ if submitted and text_input:
             if val < -10: return 'background-color: #ffcccb; color: black' 
             return ''
 
-        st.success(f"Hittade odds för {matches_found_in_api} av {len(df)} lag.")
+        st.success(f"Hittade odds för {matches_found_in_api} av {len(df)} lag via UK-sökning.")
         if matches_found_in_api < 8:
-            st.warning("Hittade få odds. Ligorna kanske inte är uppdaterade i API:et än, eller så tog API-kvoten slut.")
+            st.warning("Hittade få odds. Kontrollera att matcherna faktiskt spelas i England/Skottland denna omgång.")
 
         table_height = (len(df) * 35) + 38 
         
-        tab1, tab2, tab3, tab4 = st.tabs(["💡 Kupong", "📊 Värde", "⚖️ Odds vs Folket", "🔧 Felsökning"])
+        tab1, tab2, tab3, tab4 = st.tabs(["💡 Kupong", "📊 Värde", "⚖️ Jämförelse", "🔧 Info"])
         
         with tab1:
             kupong_view = df[['Match', 'Match_Rubrik', 'Tips', 'Analys']].copy()
-            kupong_view.columns = ['Match', 'Lag', 'Tips', 'Analys']
             st.dataframe(kupong_view, hide_index=True, use_container_width=True, height=table_height)
             
         with tab2:
-            st.write("Grönt = Bra värde. Rött = Överstreckat.")
+            st.write("Grönt = Bra värde (Folket underskattar). Rött = Överstreckat (Folket överskattar).")
             val_view = df[['Match', 'Match_Rubrik', 'Val_1', 'Val_X', 'Val_2']].copy()
-            val_view.columns = ['Match', 'Lag', 'Värde 1', 'Värde X', 'Värde 2']
-            styled_df = val_view.style.applymap(color_value, subset=['Värde 1', 'Värde X', 'Värde 2'])
+            styled_df = val_view.style.map(color_value, subset=['Val_1', 'Val_X', 'Val_2'])
             st.dataframe(styled_df, hide_index=True, use_container_width=True, height=table_height)
             
         with tab3:
-            st.write("**Jämförelse:** Om Folkets Odds är lägre än Bookmakers = Överstreckat (Dåligt).")
             odds_view = df[['Match', 'Match_Rubrik', 'API_Odds_1', 'Folk_Odds_1', 'API_Odds_X', 'Folk_Odds_X', 'API_Odds_2', 'Folk_Odds_2']].copy()
-            odds_view.columns = ['Match', 'Lag', 'Odds 1', 'Folket 1', 'Odds X', 'Folket X', 'Odds 2', 'Folket 2']
             st.dataframe(odds_view, hide_index=True, use_container_width=True, height=table_height)
 
         with tab4:
-            st.dataframe(df[['Match', 'Match_Rubrik', 'Matchat_Lag', 'Källa']], hide_index=True, use_container_width=True, height=table_height)
-
-# --- SPION-VERKTYG ---
-st.divider()
-with st.expander("🕵️ Hittar du inte laget? Klicka här för att söka i API:et"):
-    if st.button("Hämta alla lagnamn från API"):
-        with st.spinner("Hämtar listan..."):
-            all_odds = fetch_external_odds(API_KEY)
-            if all_odds:
-                team_list = sorted(list(all_odds.keys()))
-                st.write(f"Hittade **{len(team_list)}** lag totalt.")
-                st.text_area("Kopiera namn:", value="\n".join(team_list), height=400)
-
-
-
-
-
-
+            st.write("Visar vilket lag API:et matchade med:")
+            st.dataframe(df[['Match', 'Hemmalag', 'Matchat_Lag', 'Källa']], hide_index=True, use_container_width=True, height=table_height)
