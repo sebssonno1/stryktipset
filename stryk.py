@@ -3,147 +3,130 @@ import pandas as pd
 import re
 
 # --- KONFIGURATION ---
-ST_PAGE_TITLE = "🐻 Stryktipset: Block Parser Edition"
+ST_PAGE_TITLE = "🐻 Stryktipset: Strict Sequence Edition"
 SVENSKA_SPEL_URL = "https://www.svenskaspel.se/stryktipset"
 
-# --- 1. HJÄLPFUNKTIONER ---
+# --- HJÄLPFUNKTIONER ---
 def to_float(val_str):
-    """Konverterar text till decimaltal (hanterar både 1,50 och 1.50)."""
     try:
         clean = val_str.replace(',', '.').replace('%', '').strip()
         return float(clean)
-    except ValueError:
-        return None
+    except ValueError: return None
 
 def clean_team_name(name):
-    """Städar bort skräptecken från lagnamn."""
     if not isinstance(name, str): return "-"
-    name = re.sub(r'^\d+[\.\s]*', '', name) # Ta bort inledande siffror
+    # Ta bort inledande siffror, punkt och 1X2-tecken
+    name = re.sub(r'^\d+[\.\s]*', '', name) 
     name = name.replace("1X2", "").replace("1", "").replace("X", "").replace("2", "")
     return name.strip()
 
-# --- 2. DEN NYA PARSERN (Block-metod) ---
+# --- DEN NYA PARSERN (STRIKT SEKVENS) ---
 def parse_svenskaspel_paste(text_content):
-    # 1. Städa input: Ta bort tomma rader
     lines = [line.strip() for line in text_content.split('\n') if line.strip()]
     
-    # 2. Hitta var varje match börjar (radnummer där det står "1", "2" osv)
-    match_starts = []
-    for i, line in enumerate(lines):
-        if line.isdigit() and 1 <= int(line) <= 13:
-            # En extra koll så vi inte tror att ett odds typ "2,00" som råkar stå som "2" är matchnummer
-            # Matchnumret står oftast ensamt och följs av text, inte siffror
-            match_starts.append((int(line), i))
+    # 1. Hitta Start-index för match 1, 2, 3... 13
+    # Vi tvingar ordningen: Vi letar inte efter 2 förrän vi hittat 1.
+    match_indices = {}
+    current_target = 1
     
-    # Sortera för säkerhets skull
-    match_starts.sort(key=lambda x: x[0])
-    
+    for idx, line in enumerate(lines):
+        # Om raden är EXAKT siffran vi letar efter
+        if line == str(current_target):
+            match_indices[current_target] = idx
+            current_target += 1
+            if current_target > 13: break # Vi behöver bara 13 matcher
+            
+    if len(match_indices) < 13:
+        # Om vi inte hittade alla 13, försök en mjukare sökning (t.ex. "1." istället för "1")
+        return []
+
     matches = []
     
-    # 3. Loopa igenom varje match-block
-    for k in range(len(match_starts)):
-        match_num, start_index = match_starts[k]
+    # 2. Bearbeta varje match-block
+    for m_num in range(1, 14):
+        start_idx = match_indices[m_num]
         
-        # Bestäm slutindex för detta block (starten på nästa match, eller slutet på filen)
-        if k < len(match_starts) - 1:
-            end_index = match_starts[k+1][1]
+        # Slutet på detta block är starten på nästa, eller slutet på filen
+        if m_num < 13 and (m_num + 1) in match_indices:
+            end_idx = match_indices[m_num + 1]
         else:
-            end_index = len(lines)
+            end_idx = len(lines)
             
-        # Hämta alla rader som hör till DENNA match
-        block = lines[start_index:end_index]
+        block = lines[start_idx:end_idx]
+        current_match = {'Match': m_num}
         
-        current_match = {'Match': match_num}
-        
-        # --- A. Lagnamn ---
-        # Leta efter bindestreck i de första 6 raderna av blocket
+        # --- A. LAGNAMN ---
+        # Leta i de första 6 raderna efter lagnamn
+        # Strategi: Leta efter bindestreck. Hittas inget, ta rad 1 och 3 (rad 0 är siffran).
         found_teams = False
-        for j in range(min(len(block), 8)):
-            txt = block[j]
-            if txt in ['-', '–', '—', 'vs'] and j > 0 and j < len(block)-1:
-                # Fall: Lagnamn - [radbrytning] - - [radbrytning] - Lagnamn
-                current_match['Hemmalag'] = clean_team_name(block[j-1])
-                current_match['Bortalag'] = clean_team_name(block[j+1])
-                found_teams = True
-                break
-            elif '-' in txt and len(txt) > 2:
-                # Fall: "Lag A - Lag B" på samma rad
-                parts = txt.split('-')
+        
+        # Sök efter "Lag - Lag" på en rad
+        for i in range(min(len(block), 6)):
+            if '-' in block[i] and len(block[i]) > 3:
+                parts = block[i].split('-')
                 current_match['Hemmalag'] = clean_team_name(parts[0])
-                current_match['Bortalag'] = clean_team_name(parts[-1])
+                current_match['Bortalag'] = clean_team_name(parts[1])
                 found_teams = True
                 break
         
+        # Sök efter "Lag" [ny rad] "-" [ny rad] "Lag"
         if not found_teams:
-            # Nödlösning: Om inget streck hittas, ta rad 1 och 3 (rad 0 är numret)
-            if len(block) > 3:
-                current_match['Hemmalag'] = clean_team_name(block[1])
-                current_match['Bortalag'] = clean_team_name(block[3])
-
-        # --- B. Odds ---
-        # Leta efter ordet "Odds" och ta de 3 första decimaltalen som kommer efter det
-        odds_values = []
-        odds_found_start = False
-        
-        for line in block:
-            if "Odds" in line:
-                odds_found_start = True
-                continue # Hoppa till nästa rad för att leta siffror
-            
-            if odds_found_start:
-                # Regex för att hitta "1,78" eller "1.78"
-                found = re.findall(r'(\d+[.,]\d{2})', line) 
-                for f in found:
-                    val = to_float(f)
-                    if val: odds_values.append(val)
-                
-                # Om vi hittat 3 odds är vi klara
-                if len(odds_values) >= 3:
+            for i in range(min(len(block), 6)):
+                if block[i] in ['-', '–', 'vs'] and i > 0:
+                    current_match['Hemmalag'] = clean_team_name(block[i-1])
+                    current_match['Bortalag'] = clean_team_name(block[i+1])
+                    found_teams = True
                     break
         
-        if len(odds_values) >= 3:
-            current_match['Odds_1'] = odds_values[0]
-            current_match['Odds_X'] = odds_values[1]
-            current_match['Odds_2'] = odds_values[2]
-        else:
-            # Om vi inte hittade odds via "Odds"-ordet, scanna hela blocket efter decimaltal
-            # Detta är en fallback
-            all_decimals = []
-            for line in block:
-                found = re.findall(r'(\d+[.,]\d{2})', line)
-                for f in found: all_decimals.append(to_float(f))
-            
-            # Antag att de sista 3 decimaltalen i blocket är oddsen (oftast sant)
-            if len(all_decimals) >= 3:
-                current_match['Odds_1'] = all_decimals[-3]
-                current_match['Odds_X'] = all_decimals[-2]
-                current_match['Odds_2'] = all_decimals[-1]
-            else:
-                current_match['Odds_1'] = 0; current_match['Odds_X'] = 0; current_match['Odds_2'] = 0
+        # Fallback: Ta bara textraderna direkt efter siffran
+        if not found_teams and len(block) > 3:
+            current_match['Hemmalag'] = clean_team_name(block[1])
+            current_match['Bortalag'] = clean_team_name(block[3])
 
-        # --- C. Streck (Svenska Folket) ---
-        streck_values = []
+        # --- B. ODDS & STRECK ---
+        # Vi samlar ALLA decimaltal och ALLA procenttal i blocket
+        decimals = []
+        percents = []
+        
         for line in block:
-            # Leta efter tal som slutar med %
-            pcts = re.findall(r'(\d+)%', line)
-            for p in pcts: streck_values.append(int(p))
-        
-        # Om vi inte hittade %, leta efter heltal under 100 som kommer efter texten "Svenska folket"
-        if len(streck_values) < 3:
-             scanning_streck = False
-             for line in block:
-                 if "Svenska folket" in line: scanning_streck = True
-                 if scanning_streck:
-                     if line.isdigit() and int(line) <= 100:
-                         streck_values.append(int(line))
-        
-        # Ta de 3 första vi hittade
-        if len(streck_values) >= 3:
-            current_match['Streck_1'] = streck_values[0]
-            current_match['Streck_X'] = streck_values[1]
-            current_match['Streck_2'] = streck_values[2]
+            # Hitta odds (t.ex 1,78)
+            found_floats = re.findall(r'(\d+[.,]\d{2})', line)
+            for f in found_floats: decimals.append(to_float(f))
+            
+            # Hitta procent (t.ex 58%)
+            found_pcts = re.findall(r'(\d+)%', line)
+            for p in found_pcts: percents.append(int(p))
+            
+        # Logik för Odds: Ta de 3 första decimaltalen vi hittade
+        if len(decimals) >= 3:
+            current_match['Odds_1'] = decimals[0]
+            current_match['Odds_X'] = decimals[1]
+            current_match['Odds_2'] = decimals[2]
         else:
-            current_match['Streck_1'] = 0; current_match['Streck_X'] = 0; current_match['Streck_2'] = 0
+            current_match['Odds_1'] = 0; current_match['Odds_X'] = 0; current_match['Odds_2'] = 0
+            
+        # Logik för Streck: Ta de 3 första procenttalen
+        if len(percents) >= 3:
+            current_match['Streck_1'] = percents[0]
+            current_match['Streck_X'] = percents[1]
+            current_match['Streck_2'] = percents[2]
+        else:
+            # Om % saknas, leta efter heltal (Svenska folket-raden utan %)
+            ints = []
+            capture = False
+            for line in block:
+                if "Svenska folket" in line: capture = True
+                if capture:
+                    # Hitta heltal mindre än 100
+                    nums = re.findall(r'\b(\d{1,2})\b', line)
+                    for n in nums: ints.append(int(n))
+            
+            if len(ints) >= 3:
+                current_match['Streck_1'] = ints[0]
+                current_match['Streck_X'] = ints[1]
+                current_match['Streck_2'] = ints[2]
+            else:
+                current_match['Streck_1'] = 0; current_match['Streck_X'] = 0; current_match['Streck_2'] = 0
 
         matches.append(current_match)
 
@@ -162,9 +145,7 @@ def suggest_sign_and_status(row):
 
     val1, valx, val2 = row['Val_1'], row['Val_X'], row['Val_2']
     options = [('1', val1, row['Prob_1']), ('X', valx, row['Prob_X']), ('2', val2, row['Prob_2'])]
-    
-    # Sortera på VÄRDE
-    options.sort(key=lambda x: x[1], reverse=True) 
+    options.sort(key=lambda x: x[1], reverse=True) # Sortera på värde
     
     best_sign = options[0]
     tecken = [best_sign[0]]
@@ -173,7 +154,7 @@ def suggest_sign_and_status(row):
     if best_sign[1] > 7: status = f"💎 Fynd {best_sign[0]}"
     elif best_sign[1] < -10: status = "⚠️ Dåligt värde"
 
-    # Gardering: Ta alltid med favoriten om den inte är vårt värdedrag
+    # Gardering
     probs_sorted = sorted(options, key=lambda x: x[2], reverse=True)
     favorite = probs_sorted[0][0]
 
@@ -184,16 +165,12 @@ def suggest_sign_and_status(row):
 
     return "".join(sorted(tecken)), status
 
-# --- APP START ---
-st.set_page_config(page_title="Stryktipset V3", layout="wide")
+# --- APP LAYOUT ---
+st.set_page_config(page_title="Stryktipset Strict", layout="wide")
 st.title(ST_PAGE_TITLE)
 
 with st.expander("ℹ️ Instruktioner", expanded=True):
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        st.write("Klistra in hela sidan (Ctrl+A -> Ctrl+C). Denna version delar upp texten i block och missar inte odds.")
-    with col2:
-        st.link_button("Öppna Svenska Spel ↗️", SVENSKA_SPEL_URL, use_container_width=True)
+    st.info("Klistra in hela sidan (Ctrl+A -> Ctrl+C). Denna version tvingar fram exakt 13 matcher.")
 
 with st.form("input_form"):
     text_input = st.text_area("Klistra in här:", height=300)
@@ -203,11 +180,11 @@ if submitted and text_input:
     raw_data = parse_svenskaspel_paste(text_input)
     
     if not raw_data:
-        st.error("Hittade inga matcher.")
+        st.error("Kunde inte hitta sekvensen 1 till 13. Kontrollera att du kopierat hela kupongen.")
     else:
         df = pd.DataFrame(raw_data)
         
-        # Data-städning (undvik krasch)
+        # Safety checks
         if 'Hemmalag' not in df.columns: df['Hemmalag'] = "-"
         if 'Bortalag' not in df.columns: df['Bortalag'] = "-"
         df['Hemmalag'] = df['Hemmalag'].fillna("-").astype(str)
@@ -217,7 +194,7 @@ if submitted and text_input:
             if col not in df.columns: df[col] = 0.0
             df[col] = df[col].fillna(0.0)
 
-        # Beräkningar
+        # Calculations
         probs = df.apply(calculate_probabilities, axis=1, result_type='expand')
         df[['Prob_1', 'Prob_X', 'Prob_2']] = probs
         
@@ -231,9 +208,7 @@ if submitted and text_input:
         
         df['Match_Rubrik'] = df['Hemmalag'] + " - " + df['Bortalag']
 
-        # Statistik
-        odds_count = df[df['Odds_1'] > 0].shape[0]
-        st.success(f"Läste in {len(df)} matcher. Hittade odds på {odds_count} st.")
+        st.success(f"Hittade {len(df)} matcher.")
 
         h = (len(df) * 35) + 38
         
@@ -246,7 +221,7 @@ if submitted and text_input:
             )
 
         with tab2:
-            st.write("Grönt = Bra värde. Rött = Överstreckat.")
+            st.write("Positivt värde (Grönt) = Spelvärt.")
             display_cols = ['Match', 'Match_Rubrik', 'Val_1', 'Val_X', 'Val_2', 'Odds_1', 'Odds_X', 'Odds_2']
             st.dataframe(
                 df[display_cols].style.map(
