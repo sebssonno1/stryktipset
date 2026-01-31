@@ -7,7 +7,7 @@ from thefuzz import process
 
 # --- KONFIGURATION ---
 ST_PAGE_TITLE = "🐻 Stryktipset: Precision Edition"
-API_KEY = "31e8d45e0996d4e60b6dc48f8c656089" # <--- DIN NYCKEL HÄR
+API_KEY = "a2d13d188dd18fd41218508d2dd0408f" # <--- DIN NYCKEL HÄR
 CACHE_TIME = 900 
 MATCH_THRESHOLD = 90  # <--- HÖJD TILL 90: Nu gissar den inte vilt längre!
 SVENSKA_SPEL_URL = "https://www.svenskaspel.se/stryktipset"
@@ -145,19 +145,7 @@ def fetch_external_odds(api_key):
     leagues = [
         # England
         'soccer_epl', 'soccer_efl_championship', 'soccer_england_league1', 'soccer_england_league2',
-        'soccer_fa_cup', 'soccer_efl_cup',
-        # Norden
-        'soccer_sweden_allsvenskan', 'soccer_sweden_superettan', 
-        'soccer_norway_eliteserien', 'soccer_denmark_superliga',
-        # Europa Stora
-        'soccer_italy_serie_a', 'soccer_spain_la_liga', 'soccer_germany_bundesliga', 
-        'soccer_france_ligue_one', 'soccer_netherlands_eredivisie', 
-        'soccer_portugal_primeira_liga', 'soccer_turkey_super_league',
-        # Europa Andra
-        'soccer_italy_serie_b', 'soccer_spain_segunda_division', 
-        'soccer_germany_bundesliga2', 'soccer_france_ligue_two',
-        # Skottland & Cuper
-        'soccer_spl', 'soccer_uefa_champs_league', 'soccer_uefa_europa_league', 'soccer_uefa_europa_conference_league'
+        'soccer_fa_cup', 'soccer_efl_cup'
     ]
     
     prog_bar = st.progress(0, text="Hämtar odds...")
@@ -402,4 +390,5 @@ with st.expander("🕵️ Hittar du inte laget? Klicka här för att söka i API
                 team_list = sorted(list(all_odds.keys()))
                 st.write(f"Hittade **{len(team_list)}** lag totalt.")
                 st.text_area("Kopiera namn:", value="\n".join(team_list), height=400)
+
 
