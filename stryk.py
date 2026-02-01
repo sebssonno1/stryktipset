@@ -202,6 +202,7 @@ with st.expander("ℹ️ Instruktioner", expanded=True):
         st.info(f"1. Markera allt (Ctrl+A) på Svenska Spel.\n2. Kopiera (Ctrl+C).\n3. Klistra in nedan.\n4. Välj ditt maxpris och kör.")
     with col2:
         st.link_button("Öppna Stryktipset ↗️", SVENSKA_SPEL_URL, use_container_width=True)
+        st.link_button("Öppna Europatipset 🌍", "https://www.svenskaspel.se/europatipset", use_container_width=True)
 
 with st.form("input_form"):
     user_budget = st.number_input(
@@ -282,6 +283,7 @@ if submitted and text_input:
 
         with tab4:
             st.dataframe(df, use_container_width=True, height=h)
+
 
 
 
